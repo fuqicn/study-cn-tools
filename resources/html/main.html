@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国防安全科普教育软件</title>
+    <link rel="stylesheet" href="qrc:/resources/css/style.css">
+    <link rel="stylesheet" href="qrc:/resources/css/animations.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">★</div>
+            <div class="logo-text">国防科普</div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#" onclick="navigate('main')">首页</a></li>
+            <li><a href="#" onclick="navigate('timeline')">时间轴</a></li>
+            <li><a href="#" onclick="navigate('ai_chat')">AI问答</a></li>
+            <li><a href="#" onclick="navigate('settings')">设置</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <section class="hero slide-up">
+            <h1>国防安全科普教育</h1>
+            <p class="hero-subtitle">了解国防历史，掌握国防知识，增强国防意识</p>
+            <div>
+                <button class="btn btn-primary" onclick="navigate('timeline')">探索时间轴</button>
+                <button class="btn btn-secondary" onclick="navigate('ai_chat')">AI问答</button>
+            </div>
+        </section>
+
+        <section class="card-grid">
+            <div class="card slide-up delay-1">
+                <div class="card-icon">📚</div>
+                <h3>国防历史</h3>
+                <p>从南昌起义到现代化强军，回顾人民军队的光辉历程，了解国防建设的重要里程碑。</p>
+            </div>
+
+            <div class="card slide-up delay-2">
+                <div class="card-icon">🚀</div>
+                <h3>武器装备</h3>
+                <p>歼-20、航母、东风导弹...探索中国自主研发的先进武器装备，感受国防科技的飞速发展。</p>
+            </div>
+
+            <div class="card slide-up delay-3">
+                <div class="card-icon">🛡️</div>
+                <h3>国防政策</h3>
+                <p>了解新时代中国国防的防御性质，坚持走和平发展道路，构建人类命运共同体。</p>
+            </div>
+
+            <div class="card slide-up delay-4">
+                <div class="card-icon">🎖️</div>
+                <h3>军队建设</h3>
+                <p>陆军、海军、空军、火箭军、战略支援部队，了解各军兵种的建设成就和使命任务。</p>
+            </div>
+
+            <div class="card slide-up delay-5">
+                <div class="card-icon">🤖</div>
+                <h3>AI助手</h3>
+                <p>内置智能AI助手，基于Ollama本地大模型，随时解答您的国防知识疑问。</p>
+            </div>
+
+            <div class="card slide-up delay-5">
+                <div class="card-icon">⚙️</div>
+                <h3>个性定制</h3>
+                <p>支持简易模式和专业模式，满足不同用户需求，专业用户可自定义CSS样式。</p>
+            </div>
+        </section>
+
+        <section class="features">
+            <h2 style="text-align: center; margin: 3rem 0 2rem; color: var(--accent-color);">软件特色</h2>
+            <div class="card-grid">
+                <div class="card">
+                    <h3>🎯 精美动画</h3>
+                    <p>使用CSS3实现流畅的动画效果，提供沉浸式的学习体验</p>
+                </div>
+                <div class="card">
+                    <h3>🔒 本地运行</h3>
+                    <p>完全本地化的应用程序，无需联网即可使用，保护隐私安全</p>
+                </div>
+                <div class="card">
+                    <h3>🤖 智能问答</h3>
+                    <p>集成Ollama本地AI模型，智能回答国防相关问题</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>国防安全科普教育软件 | 增强国防意识，共筑钢铁长城</p>
+    </footer>
+
+    <script src="qrc:/qtwebchannel/qwebchannel.js"></script>
+    <script src="qrc:/resources/js/app.js"></script>
+    <script>
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                setTimeout(() => {
+                    card.style.opacity = '1';
+                    card.classList.add('slide-up');
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>

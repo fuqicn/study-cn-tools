@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国防时间轴 - 国防安全科普教育软件</title>
+    <link rel="stylesheet" href="qrc:/resources/css/style.css">
+    <link rel="stylesheet" href="qrc:/resources/css/animations.css">
+    <style>
+        .timeline-container {
+            padding: 2rem 0;
+        }
+
+        .timeline-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .timeline-header h1 {
+            font-size: 2.5rem;
+            background: var(--gradient-gold);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-periods {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .period-btn {
+            padding: 0.8rem 2rem;
+            background: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--text-primary);
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .period-btn:hover,
+        .period-btn.active {
+            background: var(--gradient-red);
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .timeline {
+            position: relative;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 100%;
+            background: var(--gradient-red);
+            border-radius: 2px;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 3rem;
+            opacity: 0;
+            animation: slideUp 0.6s ease-out forwards;
+        }
+
+        .timeline-item:nth-child(odd) {
+            padding-right: 50%;
+            text-align: right;
+        }
+
+        .timeline-item:nth-child(even) {
+            padding-left: 50%;
+            text-align: left;
+        }
+
+        .timeline-item:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-item:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-item:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-item:nth-child(4) { animation-delay: 0.4s; }
+
+        .timeline-content {
+            background: var(--bg-card);
+            border: 1px solid rgba(196, 30, 58, 0.3);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 0 2rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-content:hover {
+            transform: scale(1.02);
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .timeline-item:nth-child(odd) .timeline-content::after {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 10px solid transparent;
+            border-left-color: var(--bg-card);
+        }
+
+        .timeline-item:nth-child(even) .timeline-content::after {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 10px solid transparent;
+            border-right-color: var(--bg-card);
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: var(--gradient-red);
+            border-radius: 50%;
+            border: 4px solid var(--bg-dark);
+            box-shadow: var(--shadow-glow);
+            z-index: 10;
+        }
+
+        .timeline-year {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-title {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-desc {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .period-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .period-past { background: rgba(100, 100, 100, 0.3); color: #aaa; }
+        .period-present { background: rgba(196, 30, 58, 0.3); color: var(--primary-color); }
+        .period-future { background: rgba(255, 215, 0, 0.3); color: var(--accent-color); }
+
+        @media (max-width: 768px) {
+            .timeline::before {
+                left: 20px;
+            }
+
+            .timeline-item:nth-child(odd),
+            .timeline-item:nth-child(even) {
+                padding-left: 60px;
+                padding-right: 0;
+                text-align: left;
+            }
+
+            .timeline-dot {
+                left: 20px;
+            }
+
+            .timeline-item:nth-child(odd) .timeline-content::after,
+            .timeline-item:nth-child(even) .timeline-content::after {
+                left: -10px;
+                right: auto;
+                border: 10px solid transparent;
+                border-right-color: var(--bg-card);
+            }
+
+            .timeline-periods {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">★</div>
+            <div class="logo-text">国防科普</div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#" onclick="navigate('main')">首页</a></li>
+            <li><a href="#" onclick="navigate('timeline')">时间轴</a></li>
+            <li><a href="#" onclick="navigate('ai_chat')">AI问答</a></li>
+            <li><a href="#" onclick="navigate('settings')">设置</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="timeline-container">
+            <div class="timeline-header slide-up">
+                <h1>国防发展历程</h1>
+                <p style="color: var(--text-secondary);">回顾过去，立足现在，展望未来</p>
+            </div>
+
+            <div class="timeline-periods">
+                <button class="period-btn active" onclick="showPeriod('all')">全部</button>
+                <button class="period-btn" onclick="showPeriod('past')">过去</button>
+                <button class="period-btn" onclick="showPeriod('present')">现在</button>
+                <button class="period-btn" onclick="showPeriod('future')">未来</button>
+            </div>
+
+            <div class="timeline" id="timeline">
+                <!-- 过去 -->
+                <div class="timeline-item" data-period="past">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-past">过去</span>
+                        <div class="timeline-year">1927年</div>
+                        <div class="timeline-title">南昌起义</div>
+                        <div class="timeline-desc">中国共产党独立领导武装斗争的开始，创建了人民军队，揭开了中国革命的新篇章。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="past">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-past">过去</span>
+                        <div class="timeline-year">1934-1936年</div>
+                        <div class="timeline-title">长征</div>
+                        <div class="timeline-desc">红军战略转移，历经艰难险阻，铸就了伟大的长征精神，成为人类历史上的奇迹。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="past">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-past">过去</span>
+                        <div class="timeline-year">1949年</div>
+                        <div class="timeline-title">新中国成立</div>
+                        <div class="timeline-desc">中华人民共和国成立，国防建设进入新阶段，人民军队成为国家主权的坚强捍卫者。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="past">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-past">过去</span>
+                        <div class="timeline-year">1950-1953年</div>
+                        <div class="timeline-title">抗美援朝</div>
+                        <div class="timeline-desc">保家卫国，维护朝鲜半岛和平，展现了新中国的国威军威，打出了军威国威。</div>
+                    </div>
+                </div>
+
+                <!-- 现在 -->
+                <div class="timeline-item" data-period="present">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-present">现在</span>
+                        <div class="timeline-year">2012年</div>
+                        <div class="timeline-title">辽宁舰入列</div>
+                        <div class="timeline-desc">中国第一艘航空母舰正式交付海军，标志着中国海军进入航母时代。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="present">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-present">现在</span>
+                        <div class="timeline-year">2017年</div>
+                        <div class="timeline-title">歼-20服役</div>
+                        <div class="timeline-desc">中国自主研制的第五代战斗机正式列装，中国空军迈入隐身战机时代。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="present">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-present">现在</span>
+                        <div class="timeline-year">2019年</div>
+                        <div class="timeline-title">东风-41亮相</div>
+                        <div class="timeline-desc">新一代洲际弹道导弹在阅兵中首次亮相，展示了中国的战略威慑能力。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="present">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-present">现在</span>
+                        <div class="timeline-year">2022年</div>
+                        <div class="timeline-title">福建舰下水</div>
+                        <div class="timeline-desc">中国首艘电磁弹射型航空母舰下水，标志着中国航母技术的重大突破。</div>
+                    </div>
+                </div>
+
+                <!-- 未来 -->
+                <div class="timeline-item" data-period="future">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-future">未来</span>
+                        <div class="timeline-year">2025年</div>
+                        <div class="timeline-title">智能化作战</div>
+                        <div class="timeline-desc">人工智能与军事深度融合，智能化战争形态初步形成，无人系统广泛应用。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="future">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-future">未来</span>
+                        <div class="timeline-year">2030年</div>
+                        <div class="timeline-title">太空防御体系</div>
+                        <div class="timeline-desc">构建天地一体化国防体系，维护太空安全，形成新型战略威慑力量。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="future">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-future">未来</span>
+                        <div class="timeline-year">2035年</div>
+                        <div class="timeline-title">现代化军队</div>
+                        <div class="timeline-desc">基本实现国防和军队现代化，信息化建设取得重大进展。</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item" data-period="future">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="period-badge period-future">未来</span>
+                        <div class="timeline-year">2049年</div>
+                        <div class="timeline-title">世界一流军队</div>
+                        <div class="timeline-desc">全面建成世界一流军队，成为维护世界和平的坚定力量。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>国防安全科普教育软件 | 增强国防意识，共筑钢铁长城</p>
+    </footer>
+
+    <script src="qrc:/qtwebchannel/qwebchannel.js"></script>
+    <script src="qrc:/resources/js/app.js"></script>
+    <script src="qrc:/resources/js/timeline.js"></script>
+</body>
+</html>

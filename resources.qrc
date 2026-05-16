@@ -1,0 +1,14 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/html/main.html</file>
+        <file>resources/html/timeline.html</file>
+        <file>resources/html/ai_chat.html</file>
+        <file>resources/html/settings.html</file>
+        <file>resources/css/style.css</file>
+        <file>resources/css/animations.css</file>
+        <file>resources/js/app.js</file>
+        <file>resources/js/timeline.js</file>
+        <file>resources/js/chat.js</file>
+        <file>resources/changelog.md</file>
+    </qresource>
+</RCC>
