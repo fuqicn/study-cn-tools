@@ -1,1 +1,0 @@
-qmake ..\defense-edu.pro
