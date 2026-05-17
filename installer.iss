@@ -32,11 +32,12 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoProductName={#AppName}
 
 [Messages]
-; --- 覆盖默认英文消息为中文 ---
+; --- 全面覆盖英文消息为中文 ---
 SetupAppTitle=安装 - {#AppName}
 SetupWindowTitle=安装 - {#AppName}
 WelcomeLabel1=欢迎使用 {#AppName} 安装向导
 WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.2 改进：修复多项 Bug、设置存储位置变更、安装范围选择。
+WelcomeLabel3=安装程序将把 {#AppName} 安装到您的计算机。
 SelectDirLabel3=安装程序将把 {#AppName} 安装到以下文件夹。
 SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。%n%n选择安装范围：
 ReadyLabel1=安装程序已准备好将 {#AppName} 安装到您的计算机。
@@ -46,6 +47,7 @@ FinishedHeadingLabel={#AppName} 安装完成
 FinishedLabelNoIcons={#AppName} 已成功安装到您的计算机。
 FinishedLabel={#AppName} 已成功安装到您的计算机。
 ClickFinish=点击「完成」退出安装向导。
+ClickNext=点击「下一步」继续。
 LicenseLabel3=请在安装之前阅读以下声明。如果您接受该声明，请点击「我同意」继续。
 LicenseAccepted=我同意此声明(&A)
 LicenseNotAccepted=我不同意此声明
@@ -64,6 +66,33 @@ SelectDirDesc=选择 {#AppName} 的安装目录
 ReadyMemoDir=安装目录:
 ReadyMemoGroup=开始菜单文件夹:
 ReadyMemoTasks=附加任务:
+ExitSetupMessage=您确定要退出安装程序吗？%n%n安装尚未完成。
+AboutSetupMenuItem=关于安装程序(&A)
+AboutSetupMessage=安装程序版本: %1%n%n版权所有(C) 2026 傅琪%n%n本安装程序使用 Inno Setup 制作。%n%nhttps://www.innosetup.com/
+BrowseDialogTitle=浏览文件夹
+BrowseDialogLabel=请选择目标文件夹：
+SelectAdditionalTasks=请选择要执行的附加任务，然后点击「下一步」。
+SelectAdditionalIcons=创建何种快捷方式？
+SelectAdditionalIconsLabel=创建快捷方式：
+DiskSpaceWarningLabel=安装程序需要至少 %1 KB 的磁盘空间，但目标驱动器上只有 %2 KB。%n%n请选择其他安装位置或腾出磁盘空间。
+SetupLdrStartupMessage=安装程序将安装 {#AppName}。是否继续？
+UninstallStatusLabel=正在从您的计算机中删除 {#AppName}，请稍候...
+UninstalledSome={#AppName} 已被删除。%n%n由于出现错误，部分项目可能未被完全删除。
+UninstalledAll={#AppName} 已成功从您的计算机中删除。
+ConfirmUninstall=您确定要完全删除 {#AppName} 及其所有组件吗？
+UninstallProgramGroup=删除开始菜单文件夹中的程序组和图标
+UninstallNotFound=未找到卸载日志文件。%n%n是否仍然删除程序组和图标？
+NoUninstallWarning=卸载程序可能无法完全删除程序的所有文件。%n%n是否继续？
+StatusExtract=正在提取文件...
+StatusCreateDirs=正在创建目录...
+StatusCreateIcons=正在创建快捷方式...
+StatusCreateIniEntries=正在创建 INI 条目...
+StatusCreateRegistryEntries=正在创建注册表条目...
+StatusRegisterFiles=正在注册文件...
+StatusSavingUninstall=正在保存卸载信息...
+StatusRunProgram=正在完成安装...
+StatusRollback=正在回滚更改...
+StatusSetupAppRunning=安装程序检测到 {#AppName} 正在运行。%n%n请关闭 {#AppName} 后点击「确定」继续，或点击「取消」退出。
 
 [CustomMessages]
 DesktopIcon=创建桌面快捷方式
