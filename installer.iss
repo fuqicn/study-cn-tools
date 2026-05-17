@@ -2,7 +2,7 @@
 ; 制作者：傅琪
 
 #define AppName "国防安全科普教育软件"
-#define AppVersion "3.2.2"
+#define AppVersion "3.2.3"
 #define AppPublisher "傅琪"
 #define AppExeName "defense-edu.exe"
 #define AppIcon "resources\icon.ico"
@@ -15,7 +15,7 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
 DefaultDirName={autopf}\{#AppName}
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 UsedUserAreasWarning=no
 UninstallDisplayName={#AppName}
@@ -31,13 +31,14 @@ LicenseFile=LICENSE.txt
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany={#AppPublisher}
 VersionInfoProductName={#AppName}
+CloseApplications=yes
 
 [Messages]
 ; --- 全面覆盖英文消息为中文 ---
 SetupAppTitle=安装 - {#AppName}
 SetupWindowTitle=安装 - {#AppName}
 WelcomeLabel1=欢迎使用 {#AppName} 安装向导
-WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.2 改进：修复多项 Bug、设置存储位置变更、安装范围选择。
+WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.3 改进：修复25+项Bug，优化 Markdown 渲染、信号管理、防抖保存等。
 SelectDirLabel3=安装程序将把 {#AppName} 安装到以下文件夹。
 SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。
 ReadyLabel1=安装程序已准备好将 {#AppName} 安装到您的计算机。
@@ -174,6 +175,11 @@ var
   FeaturePage: TOutputMsgMemoWizardPage;
   InstallScopePage: TInputOptionWizardPage;
 
+function IsAdmin: Boolean;
+begin
+  Result := IsAdminLoggedOn or IsPowerUserLoggedOn;
+end;
+
 procedure InitializeWizard;
 begin
   // 安装范围选择页（在欢迎页之后、许可协议页之前）
@@ -187,8 +193,17 @@ begin
   );
   InstallScopePage.Add('安装给所有用户（需要管理员权限）');
   InstallScopePage.Add('仅安装给当前用户');
-  InstallScopePage.Values[0] := IsAdminInstallMode;
-  InstallScopePage.Values[1] := not IsAdminInstallMode;
+  InstallScopePage.Values[0] := IsAdmin;
+  InstallScopePage.Values[1] := not IsAdmin;
+
+  // 非管理员不允许全用户安装
+  if not IsAdmin then
+  begin
+    InstallScopePage.Values[0] := False;
+    InstallScopePage.Values[1] := True;
+    // 禁用第一项并显示提示
+    InstallScopePage.Controls[0].Enabled := False;
+  end;
 
   // 在「准备安装」页面之前，插入功能介绍页面
   FeaturePage := CreateOutputMsgMemoPage(
@@ -205,7 +220,7 @@ begin
     '{\colortbl;\red196\green30\blue58;\red255\green215\blue0;\red0\green102\blue204;}' +
     '\viewkind4\uc1\pard\sl276\slmult1\f0\fs22' +
 
-    '\pard\qc\b\fs28\cf1 国防安全科普教育软件 v3.2.2\cf0\b0\fs22\par' +
+    '\pard\qc\b\fs28\cf1 国防安全科普教育软件 v3.2.3\cf0\b0\fs22\par' +
     '\pard\qc\fs18\cf2 制作者：傅琪\par' +
     '\pard\qc\fs16\cf0 声明：Qt 不用于任何公司和商业用途\par' +
     '\pard\sl360\slmult1\fs20\par' +
@@ -252,37 +267,65 @@ begin
     '}';
 end;
 
+function IsAllUsersInstall: Boolean;
+begin
+  Result := InstallScopePage.Values[0];
+end;
+
+function GetSettingsDir(Param: String): String;
+begin
+  if IsAllUsersInstall then
+    Result := ExpandConstant('{commonappdata}\DefenseEdu')
+  else
+    Result := ExpandConstant('{localappdata}\DefenseEdu');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  ScopeFile: String;
+  ScopeFile, SettingsDir: String;
 begin
   if CurStep = ssPostInstall then
   begin
     // 写入安装范围标记文件
     ScopeFile := ExpandConstant('{app}\.install-scope');
-    if InstallScopePage.Values[0] then
+    if IsAllUsersInstall then
       SaveStringToFile(ScopeFile, 'all', False)
     else
       SaveStringToFile(ScopeFile, 'user', False);
+
+    // 确保设置目录存在
+    SettingsDir := GetSettingsDir('');
+    if not DirExists(SettingsDir) then
+      ForceDirectories(SettingsDir);
   end;
 end;
 
 // 卸载时清理设置文件
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  AppDataPath, ProgDataPath, SettingsFile: String;
+  AppDataPath, ProgDataPath, SettingsDir: String;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // 清理当前用户的设置文件
+    // 读取安装范围标记以确定清理哪个设置目录
+    SettingsDir := GetSettingsDir('');
+    if DirExists(SettingsDir) then
+    begin
+      if DeleteFile(SettingsDir + '\settings.ini') then
+        RemoveDir(SettingsDir);
+    end;
+    // 也尝试清理另一个位置
     AppDataPath := ExpandConstant('{localappdata}\DefenseEdu');
-    SettingsFile := AppDataPath + '\settings.ini';
-    if FileExists(SettingsFile) then
-      DeleteFile(SettingsFile);
-    // 也尝试清理 ProgramData 下的设置文件
+    if DirExists(AppDataPath) then
+    begin
+      DeleteFile(AppDataPath + '\settings.ini');
+      RemoveDir(AppDataPath);
+    end;
     ProgDataPath := ExpandConstant('{commonappdata}\DefenseEdu');
-    SettingsFile := ProgDataPath + '\settings.ini';
-    if FileExists(SettingsFile) then
-      DeleteFile(SettingsFile);
+    if DirExists(ProgDataPath) then
+    begin
+      DeleteFile(ProgDataPath + '\settings.ini');
+      RemoveDir(ProgDataPath);
+    end;
   end;
 end;

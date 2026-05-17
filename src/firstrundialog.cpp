@@ -1,4 +1,5 @@
 #include "firstrundialog.h"
+#include "settingsmanager.h"
 #include <QApplication>
 #include <QDir>
 #include <QTextCursor>
@@ -553,7 +554,7 @@ QWidget* FirstRunDialog::createCompletePage()
     QLabel *msg = new QLabel(
         QString("恭喜！您已经完成国防安全科普教育软件的初次设置。\n\n"
         "\u2714 主题已设置\n"
-        "\u2714 字体大小已设置\n"
+        "\u2714 视觉效果已设置\n"
         "\u2714 已阅读并同意使用许可协议\n"
         "%1\n\n"
         "现在点击「开始使用」即可进入软件主界面。").arg(aiStatus)
@@ -636,10 +637,8 @@ void FirstRunDialog::goToNextPage()
 
 void FirstRunDialog::finishSetup()
 {
-    // Save the selected model to settings
-    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
-    QDir().mkpath(appDataPath);
-    QString settingsPath = appDataPath + "/settings.ini";
+    QString settingsPath = SettingsManager::defaultSettingsPath();
+    QDir().mkpath(QFileInfo(settingsPath).absolutePath());
     QSettings settings(settingsPath, QSettings::IniFormat);
 
     // Save theme

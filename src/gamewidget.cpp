@@ -64,6 +64,7 @@ void GameWidget::resetGame()
     m_wave = 1;
     m_score = 0;
     m_gameOver = false;
+    m_paused = true;
     m_turretPos = QPointF(width() / 2.0, height() / 2.0);
     update();
 }

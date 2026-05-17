@@ -17,6 +17,8 @@ AiServiceManager::AiServiceManager(QObject *parent)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_available(false)
     , m_currentReply(nullptr)
+    , m_requestSerial(0)
+    , m_currentSerial(0)
 {
 }
 
@@ -129,11 +131,14 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
             m_currentReply = nullptr;
         }
 
+        m_currentSerial = ++m_requestSerial;
+        quint64 mySerial = m_currentSerial;
+
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
         connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
         connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
-        QTimer::singleShot(60000, m_currentReply, [this]() {
-            if (m_currentReply && m_currentReply->isRunning()) {
+        QTimer::singleShot(60000, m_currentReply, [this, mySerial]() {
+            if (mySerial == m_currentSerial && m_currentReply && m_currentReply->isRunning()) {
                 m_currentReply->abort();
                 emit errorOccurred("请求超时（60秒）");
             }
@@ -173,11 +178,14 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
             m_currentReply = nullptr;
         }
 
+        m_currentSerial = ++m_requestSerial;
+        quint64 mySerial = m_currentSerial;
+
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
         connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
         connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
-        QTimer::singleShot(60000, m_currentReply, [this]() {
-            if (m_currentReply && m_currentReply->isRunning()) {
+        QTimer::singleShot(60000, m_currentReply, [this, mySerial]() {
+            if (mySerial == m_currentSerial && m_currentReply && m_currentReply->isRunning()) {
                 m_currentReply->abort();
                 emit errorOccurred("请求超时（60秒）");
             }
@@ -283,12 +291,16 @@ void AiServiceManager::processBuffer(bool isFinal)
 
 void AiServiceManager::onChatReplyFinished()
 {
-    processBuffer(true);
-
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     if (!reply) return;
 
-    if (reply->error() != QNetworkReply::NoError) {
+    if (reply->error() == QNetworkReply::NoError) {
+        processBuffer(true);
+        // 确保流终止：如果 AI 没有发送明确的终止标记，兜底发射
+        emit responseReceived("");
+    } else {
+        // 错误发生时仍然处理缓冲区中可能的部分数据（但标记为最终）
+        processBuffer(true);
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 401) {
             emit errorOccurred("API 密钥无效，请检查设置");

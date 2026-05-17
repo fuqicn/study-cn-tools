@@ -42,6 +42,8 @@ private:
     QNetworkReply *m_currentReply;
     QByteArray m_buffer;
     QString m_currentProvider;  // "ollama" 或 "deepseek"
+    quint64 m_requestSerial;
+    quint64 m_currentSerial;
 
     void processBuffer(bool isFinal);
 };

@@ -5,14 +5,12 @@
 #include <QStandardPaths>
 #include <QStringList>
 
-static QString settingsFilePath()
+QString SettingsManager::defaultSettingsPath()
 {
-    // 检测安装作用域: 检查程序是否在 Program Files 中
     QString appDir = QApplication::applicationDirPath();
     QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
     QString progDataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/DefenseEdu";
 
-    // 在 appfolder 目录放一个 .install-scope 标记文件
     QString scopeFile = appDir + "/.install-scope";
     if (QFile::exists(scopeFile)) {
         QFile f(scopeFile);
@@ -32,7 +30,7 @@ static QString settingsFilePath()
 
 SettingsManager::SettingsManager(QObject *parent)
     : QObject(parent)
-    , m_settings(new QSettings(settingsFilePath(), QSettings::IniFormat, this))
+    , m_settings(new QSettings(defaultSettingsPath(), QSettings::IniFormat, this))
 {
 }
 

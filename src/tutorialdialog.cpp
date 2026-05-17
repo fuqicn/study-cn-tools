@@ -16,7 +16,6 @@ TutorialOverlay::TutorialOverlay(QWidget *target, const QString &title, const QS
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowFlags(Qt::FramelessWindowHint);
-    setCursor(Qt::PointingHandCursor);
 }
 
 void TutorialOverlay::paintEvent(QPaintEvent *)
@@ -24,9 +23,10 @@ void TutorialOverlay::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Calculate target rect in overlay coordinates
+    // Calculate target rect in overlay (parent-relative) coordinates
     if (m_target) {
-        m_targetRect = QRect(m_target->mapToGlobal(QPoint(0, 0)), m_target->size());
+        QWidget *p = parentWidget();
+        m_targetRect = QRect(m_target->mapTo(p, QPoint(0, 0)), m_target->size());
     } else {
         m_targetRect = QRect(width() / 2 - 50, height() / 2 - 50, 100, 100);
     }
@@ -112,9 +112,14 @@ void TutorialOverlay::paintEvent(QPaintEvent *)
     painter.drawText(m_btnRect, Qt::AlignCenter, m_btnText);
 }
 
-void TutorialOverlay::mousePressEvent(QMouseEvent *)
+void TutorialOverlay::mousePressEvent(QMouseEvent *event)
 {
-    emit nextClicked();
+    if (m_btnRect.isValid() && m_btnRect.contains(event->pos())) {
+        emit nextClicked();
+        return;
+    }
+    // 点击高亮区域或外部区域时不做任何事（以避免穿透干扰下层控件，也不需要跳过步骤）
+    event->ignore();
 }
 
 

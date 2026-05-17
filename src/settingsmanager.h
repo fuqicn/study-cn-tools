@@ -64,6 +64,9 @@ public:
     QStringList discoveredDeepseekModels() const;
     void setDiscoveredDeepseekModels(const QStringList &models);
 
+    // 默认设置文件路径（与 main.cpp 保持一致）
+    static QString defaultSettingsPath();
+
     // 默认提示词
     static QString defaultSystemPrompt();
 

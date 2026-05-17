@@ -111,6 +111,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_aiServiceManager(new AiServiceManager(this))
     , m_startupNetManager(new QNetworkAccessManager(this))
     , m_settingsManager(new SettingsManager(this))
+    , m_saveDebounceTimer(new QTimer(this))
     , m_isReceiving(false)
     , m_aiProviderCombo(nullptr)
     , m_aiSettingsStack(nullptr)
@@ -125,6 +126,11 @@ MainWindow::MainWindow(QWidget *parent)
     setupUi();            // 先创建UI组件
     loadSettingsToUi();   // 再加载设置到UI
     applyTheme();
+
+    // 设置防抖定时器: 500ms 内多次触发只保存一次
+    m_saveDebounceTimer->setSingleShot(true);
+    m_saveDebounceTimer->setInterval(500);
+    connect(m_saveDebounceTimer, &QTimer::timeout, this, &MainWindow::saveSettings);
 
     connect(m_aiServiceManager, &AiServiceManager::statusChanged,   this, &MainWindow::onAiServiceStatusChanged);
     connect(m_aiServiceManager, &AiServiceManager::responseChunk,   this, &MainWindow::onResponseChunk);
@@ -935,10 +941,13 @@ void MainWindow::generateQuiz()
         "\"answer\":正确答案索引0到3,\"explanation\":\"解析\"}]\n"
         "只输出JSON数组，不要加```json等标记。").arg(count);
 
-    // 优化：使用Qt::UniqueConnection避免重复连接
+    // 断开所有旧连接（包括聊天模式的 onErrorOccurred）
     disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onQuizResponseChunk);
     disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onQuizResponseReceived);
     disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onQuizError);
+    disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk);
+    disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived);
+    disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred);
 
     connect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onQuizResponseChunk, Qt::UniqueConnection);
     connect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onQuizResponseReceived, Qt::UniqueConnection);
@@ -1147,11 +1156,21 @@ QString MainWindow::renderMarkdown(const QString &md) const
 
 QString MainWindow::processInline(const QString &text) const
 {
-    QString r = text.toHtmlEscaped();
+    QString r = text;
+    // 先保护行内代码中的格式化标记
+    r.replace(QRegularExpression("`([^`]+)`"), "\x01code\x01\\1\x01endcode\x01");
+    // 然后转义HTML
+    r = r.toHtmlEscaped();
+    // 粗体（支持三连星号 ***text***）
+    r.replace(QRegularExpression("\\*\\*\\*(.+?)\\*\\*\\*"), "<b><i>\\1</i></b>");
     r.replace(QRegularExpression("\\*\\*(.+?)\\*\\*"), "<b>\\1</b>");
     r.replace(QRegularExpression("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), "<i>\\1</i>");
-    r.replace(QRegularExpression("`([^`]+)`"), "<code>\\1</code>");
-    r.replace(QRegularExpression("\\[([^\\]]+)\\]\\(([^)]+)\\)"), "<a href='\\2'>\\1</a>");
+    // 链接（转义URL中的单引号）
+    r.replace(QRegularExpression("\\[([^\\]]+)\\]\\(([^)]+)\\)"),
+              "<a href='\\2' target='_blank'>\\1</a>");
+    // 还原行内代码
+    r.replace("\x01code\x01", "<code>");
+    r.replace("\x01endcode\x01", "</code>");
     r.replace("\n", "<br>");
     return r;
 }
@@ -1174,7 +1193,7 @@ void MainWindow::finishQuiz()
     m_quizFeedback->hide();
     m_quizNextBtn->setText("再来一轮");
     m_quizNextBtn->show();
-    m_quizNextBtn->disconnect();
+    disconnect(m_quizNextBtn, &QPushButton::clicked, this, &MainWindow::nextQuestion);
     connect(m_quizNextBtn, &QPushButton::clicked, this, &MainWindow::generateQuiz);
 }
 
@@ -1338,11 +1357,16 @@ QWidget* MainWindow::createSettingsPage()
     aiLayout->addWidget(m_aiProviderCombo);
     connect(m_aiProviderCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index){
         m_aiSettingsStack->setCurrentIndex(index);
-        // 保存设置
         if (index == 0) {
             m_settingsManager->setAiProvider("ollama");
+            // 恢复Ollama已检测模型
+            QStringList models = m_settingsManager->discoveredOllamaModels();
+            onModelsFetched(models);
         } else {
             m_settingsManager->setAiProvider("deepseek");
+            // 恢复DeepSeek已检测模型
+            QStringList models = m_settingsManager->discoveredDeepseekModels();
+            onModelsFetched(models);
         }
     });
 
@@ -1356,12 +1380,13 @@ QWidget* MainWindow::createSettingsPage()
     ollamaLayout->setSpacing(8);
     ollamaLayout->addWidget(new QLabel("服务地址:"));
     m_urlInput->setText("http://localhost:11434");
-    connect(m_urlInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
+    connect(m_urlInput, &QLineEdit::textChanged, this, &MainWindow::debouncedSaveSettings);
     ollamaLayout->addWidget(m_urlInput);
     ollamaLayout->addWidget(new QLabel("模型名称:"));
-    m_modelSelectCombo->setEditable(false);
+    m_modelSelectCombo->setEditable(true);
+    m_modelSelectCombo->lineEdit()->setPlaceholderText("输入或选择模型名称");
     m_modelSelectCombo->addItem("自定义");
-    connect(m_modelSelectCombo, &QComboBox::currentTextChanged, this, &MainWindow::saveSettings);
+    connect(m_modelSelectCombo, &QComboBox::currentTextChanged, this, &MainWindow::debouncedSaveSettings);
     ollamaLayout->addWidget(m_modelSelectCombo);
     QLabel *modelHint = new QLabel("提示: 选择「自定义」时可手动输入模型名称");
     modelHint->setObjectName("dimLabel");
@@ -1382,13 +1407,13 @@ QWidget* MainWindow::createSettingsPage()
     deepseekLayout->addWidget(new QLabel("API 地址:"));
     m_deepseekApiUrlInput = new QLineEdit();
     m_deepseekApiUrlInput->setText("https://api.deepseek.com/v1");
-    connect(m_deepseekApiUrlInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
+    connect(m_deepseekApiUrlInput, &QLineEdit::textChanged, this, &MainWindow::debouncedSaveSettings);
     deepseekLayout->addWidget(m_deepseekApiUrlInput);
     deepseekLayout->addWidget(new QLabel("API 密钥:"));
     m_deepseekApiKeyInput = new QLineEdit();
     m_deepseekApiKeyInput->setEchoMode(QLineEdit::Password);
     m_deepseekApiKeyInput->setPlaceholderText("请输入DeepSeek API密钥");
-    connect(m_deepseekApiKeyInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
+    connect(m_deepseekApiKeyInput, &QLineEdit::textChanged, this, &MainWindow::debouncedSaveSettings);
     deepseekLayout->addWidget(m_deepseekApiKeyInput);
     deepseekLayout->addWidget(new QLabel("模型名称:"));
     QComboBox *deepseekModelCombo = new QComboBox();
@@ -1397,7 +1422,7 @@ QWidget* MainWindow::createSettingsPage()
     deepseekModelCombo->addItem("deepseek-chat");
     deepseekModelCombo->addItem("deepseek-coder");
     deepseekModelCombo->addItem("自定义");
-    connect(deepseekModelCombo, &QComboBox::currentTextChanged, this, &MainWindow::saveSettings);
+    connect(deepseekModelCombo, &QComboBox::currentTextChanged, this, &MainWindow::debouncedSaveSettings);
     deepseekLayout->addWidget(deepseekModelCombo);
     QLabel *deepseekHint = new QLabel("提示: 请在DeepSeek官网获取API密钥: https://platform.deepseek.com");
     deepseekHint->setObjectName("dimLabel");
@@ -1412,7 +1437,7 @@ QWidget* MainWindow::createSettingsPage()
     aiLayout->addWidget(new QLabel("系统提示词:"));
     m_promptInput->setObjectName("promptInput");
     m_promptInput->setMaximumHeight(70);
-    connect(m_promptInput, &QTextEdit::textChanged, this, &MainWindow::saveSettings);
+    connect(m_promptInput, &QTextEdit::textChanged, this, &MainWindow::debouncedSaveSettings);
     aiLayout->addWidget(m_promptInput);
 
     lay->addWidget(aiFrame);
@@ -1577,19 +1602,36 @@ void MainWindow::sendChatMessage()
     QString msg = m_chatInput->toPlainText().trimmed();
     if (msg.isEmpty() || m_isReceiving) return;
 
-    // 保存当前显示内容作为历史
-    QString currentHtml = m_chatDisplay->toHtml();
-    // 如果是初始欢迎页面则清空（严格匹配欢迎页HTML特征）
+    // 如果是初始欢迎页面则清空历史
     static const QString welcomeMarker = "欢迎来到国防知识 AI 助手";
-    if (currentHtml.contains(welcomeMarker) && m_currentResponse.isEmpty() && !m_isReceiving) {
-        m_chatPrefix.clear();
-    } else {
-        m_chatPrefix = currentHtml;
+    if (m_chatDisplay->toHtml().contains(welcomeMarker) && m_currentResponse.isEmpty() && !m_isReceiving) {
+        m_chatHistory.clear();
     }
 
     // 添加用户消息到历史
-    m_chatPrefix += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
-                        .arg(t.accent, escapeHtml(msg));
+    m_chatHistory.append("user||" + msg);
+
+    // 限制历史条数，防止内存无限增长
+    while (m_chatHistory.size() > 100) {
+        m_chatHistory.removeFirst();
+    }
+
+    // 重建完整聊天显示
+    QString fullHtml;
+    for (const QString &entry : m_chatHistory) {
+        int sep = entry.indexOf("||");
+        if (sep < 0) continue;
+        QString role = entry.left(sep);
+        QString content = entry.mid(sep + 2);
+        if (role == "user") {
+            fullHtml += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
+                            .arg(t.accent, escapeHtml(content));
+        } else {
+            fullHtml += QString("<div style='margin:6px 0;color:%1;'><b style='color:%2;'>AI:</b> %3</div>")
+                            .arg(t.text, t.accent, content);
+        }
+    }
+    m_chatPrefix = fullHtml;
 
     // 显示AI正在思考
     m_chatDisplay->setHtml(m_chatPrefix +
@@ -1608,10 +1650,13 @@ void MainWindow::sendChatMessage()
         m_aiServiceManager->sendMessage(msg, model, m_settingsManager->systemPrompt(), "deepseek", m_settingsManager->deepseekApiUrl(), m_settingsManager->deepseekApiKey());
     }
 
-    // 确保答题模式的信号已断开，并连接聊天模式信号
+    // 确保所有旧信号已断开，然后连接聊天模式信号
     disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onQuizResponseChunk);
     disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onQuizResponseReceived);
     disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onQuizError);
+    disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred);
+    disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk);
+    disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived);
     connect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk, Qt::UniqueConnection);
     connect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived, Qt::UniqueConnection);
     connect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred, Qt::UniqueConnection);
@@ -1643,39 +1688,68 @@ void MainWindow::onResponseChunk(const QString &chunk)
     QScrollBar *sb = m_chatDisplay->verticalScrollBar(); sb->setValue(sb->maximum());
 }
 
-void MainWindow::onResponseReceived(const QString &) { m_isReceiving = false; }
+void MainWindow::onResponseReceived(const QString &)
+{
+    m_isReceiving = false;
+    // 将AI回复写入历史
+    const Theme &t = m_darkMode ? DARK : LIGHT;
+    QString rendered = renderMarkdown(m_currentResponse);
+    m_chatHistory.append("ai||" + rendered);
+    // 限制历史条数
+    while (m_chatHistory.size() > 100) {
+        m_chatHistory.removeFirst();
+    }
+    // 重建完整显示
+    QString fullHtml;
+    for (const QString &entry : m_chatHistory) {
+        int sep = entry.indexOf("||");
+        if (sep < 0) continue;
+        QString role = entry.left(sep);
+        QString content = entry.mid(sep + 2);
+        if (role == "user") {
+            fullHtml += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
+                            .arg(t.accent, content);
+        } else {
+            fullHtml += QString("<div style='margin:6px 0;color:%1;'><b style='color:%2;'>AI:</b> %3</div>")
+                            .arg(t.text, t.accent, content);
+        }
+    }
+    m_chatPrefix = fullHtml;
+    m_chatDisplay->setHtml(fullHtml);
+    QScrollBar *sb = m_chatDisplay->verticalScrollBar(); sb->setValue(sb->maximum());
+}
 
 void MainWindow::onModelsFetched(const QStringList &models)
 {
-    // Update the settings model combo with discovered models
+    // 保存检测到的模型（各服务商各自保存，不依赖当前 provider）
     QString currentText = m_modelSelectCombo->currentText();
     bool isCustom = (m_modelSelectCombo->currentIndex() == m_modelSelectCombo->count() - 1);
 
-    // 保存检测到的模型
-    QString provider = m_settingsManager->aiProvider();
-    if (provider == "ollama") {
+    // 从当前请求保存模型到对应服务商
+    if (m_settingsManager->aiProvider() == "ollama") {
         m_settingsManager->setDiscoveredOllamaModels(models);
     } else {
         m_settingsManager->setDiscoveredDeepseekModels(models);
     }
 
     m_modelSelectCombo->clear();
+    m_modelSelectCombo->setEditable(true);
+    m_modelSelectCombo->lineEdit()->setPlaceholderText("输入或选择模型名称");
     for (const QString &m : models) { m_modelSelectCombo->addItem(m); }
     m_modelSelectCombo->addItem("自定义");
 
     // 根据当前服务商获取保存的模型
+    QString provider = m_settingsManager->aiProvider();
     QString saved = provider == "ollama" ? m_settingsManager->ollamaModel() : m_settingsManager->deepseekModel();
 
     int idx = m_modelSelectCombo->findText(saved);
     if (idx >= 0) { m_modelSelectCombo->setCurrentIndex(idx); }
-    else if (!models.isEmpty()) {
+    else if (!saved.isEmpty() && models.contains(saved)) {
+        m_modelSelectCombo->setCurrentIndex(m_modelSelectCombo->findText(saved));
+    } else if (!models.isEmpty()) {
         m_modelSelectCombo->setCurrentIndex(0);
-        if (provider == "ollama")
-            m_settingsManager->setOllamaModel(models.first());
-        else
-            m_settingsManager->setDeepseekModel(models.first());
-    } else if (isCustom && !currentText.isEmpty()) {
-        m_modelSelectCombo->setCurrentIndex(m_modelSelectCombo->count() - 1);
+    } else if (isCustom && !currentText.isEmpty() && currentText != "自定义") {
+        m_modelSelectCombo->setCurrentText(currentText);
     }
 
     m_settingsManager->sync();
@@ -1788,83 +1862,83 @@ static const QList<QVariantMap> g_knowledgeQuizQuestions = [](){
     };
 
     addQ("中国人民解放军建军节是哪一天？",
-         {"A. 7月1日", "B. 8月1日", "C. 10月1日", "D. 12月25日"}, 1,
+         {"7月1日", "8月1日", "10月1日", "12月25日"}, 1,
          "1927年8月1日南昌起义标志着中国共产党独立领导武装斗争的开始。");
 
     addQ("中国第一颗原子弹爆炸成功是在哪一年？",
-         {"A. 1960年", "B. 1962年", "C. 1964年", "D. 1966年"}, 2,
+         {"1960年", "1962年", "1964年", "1966年"}, 2,
          "1964年10月16日，中国第一颗原子弹爆炸成功。");
 
     addQ("中国首艘航空母舰辽宁舰是哪一年交付海军的？",
-         {"A. 2010年", "B. 2011年", "C. 2012年", "D. 2013年"}, 2,
+         {"2010年", "2011年", "2012年", "2013年"}, 2,
          "2012年9月，辽宁舰（舷号16）交付海军。");
 
     addQ("我国领海宽度为多少海里？",
-         {"A. 3海里", "B. 12海里", "C. 24海里", "D. 200海里"}, 1,
+         {"3海里", "12海里", "24海里", "200海里"}, 1,
          "根据相关法律规定，我国领海宽度为12海里。");
 
     addQ("全民国防教育日是每年几月的第几个星期六？",
-         {"A. 8月第一个星期六", "B. 9月第三个星期六", "C. 10月第二个星期六", "D. 11月第四个星期六"}, 1,
+         {"8月第一个星期六", "9月第三个星期六", "10月第二个星期六", "11月第四个星期六"}, 1,
          "全民国防教育日是每年9月的第三个星期六。");
 
     addQ("中国的武装力量由哪三部分组成？",
-         {"A. 解放军、武警、民兵", "B. 解放军、警察、民兵", "C. 解放军、武警、预备役", "D. 陆军、海军、空军"}, 0,
+         {"解放军、武警、民兵", "解放军、警察、民兵", "解放军、武警、预备役", "陆军、海军、空军"}, 0,
          "中国武装力量由中国人民解放军、中国人民武装警察部队和民兵组成。");
 
     addQ("东风-41洲际弹道导弹的射程大约是多少公里？",
-         {"A. 8000公里", "B. 10000公里", "C. 14000公里以上", "D. 20000公里"}, 2,
+         {"8000公里", "10000公里", "14000公里以上", "20000公里"}, 2,
          "东风-41射程超过14000公里，可覆盖全球大部分地区。");
 
     addQ("歼-20是中国自主研制的第几代战斗机？",
-         {"A. 第三代", "B. 第四代", "C. 第五代", "D. 第六代"}, 2,
+         {"第三代", "第四代", "第五代", "第六代"}, 2,
          "歼-20是第五代战斗机，采用鸭式气动布局，具备超音速巡航能力。");
 
     addQ("福建舰是中国第几艘电磁弹射型航空母舰？",
-         {"A. 第一艘", "B. 第二艘", "C. 第三艘", "D. 第四艘"}, 0,
+         {"第一艘", "第二艘", "第三艘", "第四艘"}, 0,
          "福建舰（舷号18）是中国完全自主设计的首艘弹射型航母。");
 
     addQ("99A主战坦克的主炮口径是多少毫米？",
-         {"A. 100毫米", "B. 105毫米", "C. 120毫米", "D. 125毫米"}, 3,
+         {"100毫米", "105毫米", "120毫米", "125毫米"}, 3,
          "99A搭载125mm滑膛炮，可发射炮射导弹。");
 
     addQ("055型驱逐舰的满载排水量约为多少吨？",
-         {"A. 8000吨", "B. 10000吨", "C. 12500吨", "D. 15000吨"}, 2,
+         {"8000吨", "10000吨", "12500吨", "15000吨"}, 2,
          "055型满载排水量超12000吨，是世界最先进的驱逐舰之一。");
 
     addQ("中国现行兵役制度实行的是什么制度？",
-         {"A. 纯义务兵役制", "B. 纯志愿兵役制", "C. 义务兵与志愿兵相结合", "D. 雇佣兵役制"}, 2,
+         {"纯义务兵役制", "纯志愿兵役制", "义务兵与志愿兵相结合", "雇佣兵役制"}, 2,
          "中国实行义务兵与志愿兵相结合、民兵与预备役相结合的兵役制度。");
 
     addQ("中国成为世界上第几个拥有核武器的国家？",
-         {"A. 第三个", "B. 第四个", "C. 第五个", "D. 第六个"}, 2,
+         {"第三个", "第四个", "第五个", "第六个"}, 2,
          "中国是继美、苏、英、法之后第五个拥有核武器的国家。");
 
     addQ("空警-500预警机是以哪种飞机为平台研制的？",
-         {"A. 运-8", "B. 运-9", "C. 运-20", "D. 轰-6"}, 1,
+         {"运-8", "运-9", "运-20", "轰-6"}, 1,
          "空警-500以运-9为平台，搭载数字阵列有源相控阵雷达。");
 
     addQ("运-20大型运输机的最大载重约为多少吨？",
-         {"A. 44吨", "B. 55吨", "C. 66吨", "D. 77吨"}, 2,
+         {"44吨", "55吨", "66吨", "77吨"}, 2,
          "运-20（鲲鹏）最大载重约66吨。");
 
     addQ("东风-17高超音速导弹的最大速度超过多少马赫？",
-         {"A. 5马赫", "B. 8马赫", "C. 10马赫", "D. 15马赫"}, 2,
+         {"5马赫", "8马赫", "10马赫", "15马赫"}, 2,
          "东风-17速度超过10马赫，弹道不可预测，现有反导系统难以拦截。");
 
     addQ("红旗-9B防空导弹的最大射程约为多少公里？",
-         {"A. 100公里", "B. 200公里", "C. 300公里", "D. 500公里"}, 2,
+         {"100公里", "200公里", "300公里", "500公里"}, 2,
          "红旗-9B最大射程约300公里，是国土防空体系核心装备。");
 
     addQ("国防动员的核心目的是什么？",
-         {"A. 发展经济", "B. 应对战争或其他安全威胁", "C. 促进国际合作", "D. 维护社会稳定"}, 1,
+         {"发展经济", "应对战争或其他安全威胁", "促进国际合作", "维护社会稳定"}, 1,
          "国防动员是国家为应对战争或其他安全威胁所进行的活动。");
 
     addQ("中国实行积极防御的军事战略方针，其核心是什么？",
-         {"A. 先发制人", "B. 自卫防御", "C. 进攻为主", "D. 威慑为主"}, 1,
+         {"先发制人", "自卫防御", "进攻为主", "威慑为主"}, 1,
          "中国坚持积极防御的军事战略方针，核心是自卫防御。");
 
     addQ("人民防空实行的方针是什么？",
-         {"A. 战时准备、全面建设、军民结合", "B. 长期准备、重点建设、平战结合", "C. 应急准备、全面覆盖、军民融合", "D. 预防为主、防治结合、全民参与"}, 1,
+         {"战时准备、全面建设、军民结合", "长期准备、重点建设、平战结合", "应急准备、全面覆盖、军民融合", "预防为主、防治结合、全民参与"}, 1,
          "人民防空实行长期准备、重点建设、平战结合的方针。");
 
     return list;
@@ -2055,7 +2129,7 @@ void MainWindow::finishKQuiz()
     m_kQuizFeedback->hide();
     m_kQuizNextBtn->setText("再来一轮");
     m_kQuizNextBtn->show();
-    m_kQuizNextBtn->disconnect();
+    disconnect(m_kQuizNextBtn, &QPushButton::clicked, this, &MainWindow::nextKQuestion);
     connect(m_kQuizNextBtn, &QPushButton::clicked, this, &MainWindow::startKnowledgeQuiz);
 }
 
@@ -2074,7 +2148,7 @@ void MainWindow::saveSettings()
 
     QString ollamaModelText = m_modelSelectCombo->currentText();
     if (ollamaModelText == "自定义") {
-        ollamaModelText = m_modelSelectCombo->currentText();
+        ollamaModelText = "";  // 不保存字面量"自定义"
     }
     m_settingsManager->setOllamaModel(ollamaModelText);
 
@@ -2099,6 +2173,11 @@ void MainWindow::saveSettings()
             << ")\n";
         logFile.close();
     }
+}
+
+void MainWindow::debouncedSaveSettings()
+{
+    m_saveDebounceTimer->start();
 }
 
 void MainWindow::loadSettingsToUi()
@@ -2258,13 +2337,15 @@ void MainWindow::showChangelog()
             // 列表项 (- 或 *)
             else if (line.startsWith("- ") || line.startsWith("* ")) {
                 QString content = line.mid(2);
-                // 处理粗体
+                // 先转义HTML，再处理粗体（避免 <b> 被转义）
+                content = content.toHtmlEscaped();
                 content.replace(QRegularExpression("\\*\\*(.+?)\\*\\*"), "<b>\\1</b>");
-                html += QString("&bull; %1<br>").arg(content.toHtmlEscaped());
+                html += QString("&bull; %1<br>").arg(content);
             }
             // 普通文本
             else {
-                // 处理行内粗体
+                // 先转义HTML，再处理粗体
+                line = line.toHtmlEscaped();
                 line.replace(QRegularExpression("\\*\\*(.+?)\\*\\*"), "<b>\\1</b>");
                 html += line + "<br>";
             }

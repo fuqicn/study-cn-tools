@@ -8,29 +8,7 @@
 #include "mainwindow.h"
 #include "firstrundialog.h"
 #include "tutorialdialog.h"
-
-static QString settingsFilePath()
-{
-    QString appDir = QApplication::applicationDirPath();
-    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
-    QString progDataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/DefenseEdu";
-
-    QString scopeFile = appDir + "/.install-scope";
-    if (QFile::exists(scopeFile)) {
-        QFile f(scopeFile);
-        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString scope = QString::fromUtf8(f.readAll()).trimmed();
-            f.close();
-            if (scope == "all") {
-                QDir().mkpath(progDataPath);
-                return progDataPath + "/settings.ini";
-            }
-        }
-    }
-
-    QDir().mkpath(appDataPath);
-    return appDataPath + "/settings.ini";
-}
+#include "settingsmanager.h"
 
 int main(int argc, char *argv[])
 {
@@ -54,11 +32,24 @@ int main(int argc, char *argv[])
 
     QLocalServer server;
     QLocalServer::removeServer(serverName);
-    server.listen(serverName);
+    if (!server.listen(serverName)) {
+        qWarning("QLocalServer listen failed: %s", qPrintable(server.errorString()));
+    }
+
+    // 创建主窗口（复用同一实例，避免重复代码）
+    MainWindow window;
+    window.show();
+
+    QObject::connect(&server, &QLocalServer::newConnection, [&]() {
+        QLocalSocket *client = server.nextPendingConnection();
+        if (client) { client->readAll(); client->deleteLater(); }
+        window.showNormal();
+        window.activateWindow();
+        window.raise();
+    });
 
     // 检查是否为首次运行
-    QString settingsPath = settingsFilePath();
-    QSettings settings(settingsPath, QSettings::IniFormat);
+    QSettings settings(SettingsManager::defaultSettingsPath(), QSettings::IniFormat);
     bool firstRun = !settings.value("firstRunCompleted", false).toBool();
 
     if (firstRun) {
@@ -82,37 +73,11 @@ int main(int argc, char *argv[])
             return 0;
         }
 
-        // 创建主窗口
-        MainWindow window;
-        window.show();
-
-        QObject::connect(&server, &QLocalServer::newConnection, [&]() {
-            QLocalSocket *client = server.nextPendingConnection();
-            if (client) { client->readAll(); client->deleteLater(); }
-            window.showNormal();
-            window.activateWindow();
-            window.raise();
-        });
-
         // 首次运行完成后显示交互式教程
         QTimer::singleShot(800, &window, [&window]() {
             window.startTutorial();
         });
-
-        return app.exec();
     }
-
-    // 非首次运行，直接显示主窗口
-    MainWindow window;
-    window.show();
-
-    QObject::connect(&server, &QLocalServer::newConnection, [&]() {
-        QLocalSocket *client = server.nextPendingConnection();
-        if (client) { client->readAll(); client->deleteLater(); }
-        window.showNormal();
-        window.activateWindow();
-        window.raise();
-    });
 
     return app.exec();
 }

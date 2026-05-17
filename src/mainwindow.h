@@ -100,6 +100,7 @@ private:
 
     /* settings */
     void saveSettings();
+    void debouncedSaveSettings();
     void resetSettings();
     void loadSettingsToUi();
     void showChangelog();
@@ -184,12 +185,16 @@ private:
     QLineEdit   *m_deepseekApiKeyInput;
     QLineEdit   *m_deepseekApiUrlInput;
 
+    /* settings debounce */
+    QTimer *m_saveDebounceTimer;
+
     /* managers */
     AiServiceManager    *m_aiServiceManager;
     QNetworkAccessManager *m_startupNetManager;  // for silent startup detection
     SettingsManager *m_settingsManager;
 
     /* 聊天状态 */
+    QStringList m_chatHistory;   // 每项为 "<role>||<content>"，role="user"/"ai"
     QString m_chatPrefix;
     QString m_currentResponse;
     bool    m_isReceiving;
