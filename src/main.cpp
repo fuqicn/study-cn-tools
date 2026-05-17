@@ -34,9 +34,8 @@ int main(int argc, char *argv[])
         qWarning("QLocalServer listen failed: %s", qPrintable(server.errorString()));
     }
 
-    // 创建主窗口（复用同一实例，避免重复代码）
+    // 创建主窗口（延迟显示，等首次运行对话框之后）
     MainWindow window;
-    window.show();
 
     QObject::connect(&server, &QLocalServer::newConnection, [&]() {
         QLocalSocket *client = server.nextPendingConnection();
@@ -76,6 +75,8 @@ int main(int argc, char *argv[])
             window.startTutorial();
         });
     }
+
+    window.show();
 
     return app.exec();
 }
