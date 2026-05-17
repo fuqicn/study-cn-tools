@@ -41,11 +41,13 @@ private:
     QString m_currentModel;
     QNetworkReply *m_currentReply;
     QByteArray m_buffer;
-    QString m_currentProvider;  // "ollama" 或 "deepseek"
+    QString m_currentProvider;
     quint64 m_requestSerial;
     quint64 m_currentSerial;
+    bool m_streamFinished;
 
     void processBuffer(bool isFinal);
+    void maybeEmitResponseReceived();
 };
 
 #endif // AISERVICEMANAGER_H

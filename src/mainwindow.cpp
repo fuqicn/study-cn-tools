@@ -180,6 +180,20 @@ void MainWindow::applyTheme()
         "QScrollArea { border:none; background:transparent; }"
         "QScrollArea > QWidget > QWidget { background:%1; }"
 
+        /* ---- 现代滚动条 ---- */
+        "QScrollBar:vertical { background:transparent; width:8px; margin:0; }"
+        "QScrollBar::handle:vertical { background:rgba(128,128,128,0.35); min-height:30px; border-radius:4px; }"
+        "QScrollBar::handle:vertical:hover { background:rgba(128,128,128,0.55); }"
+        "QScrollBar::handle:vertical:pressed { background:rgba(128,128,128,0.75); }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; background:none; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background:none; }"
+        "QScrollBar:horizontal { background:transparent; height:8px; margin:0; }"
+        "QScrollBar::handle:horizontal { background:rgba(128,128,128,0.35); min-width:30px; border-radius:4px; }"
+        "QScrollBar::handle:horizontal:hover { background:rgba(128,128,128,0.55); }"
+        "QScrollBar::handle:horizontal:pressed { background:rgba(128,128,128,0.75); }"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width:0; background:none; }"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background:none; }"
+
         /* ---- 文本编辑 ---- */
         "QTextEdit { background:%3; color:%2; border:1px solid %5; border-radius:10px; padding:14px; }"
         "QTextEdit#chatDisplay { font-size:14px; line-height:1.6; }"
@@ -481,7 +495,7 @@ void MainWindow::setupUi()
     }
     drawerLay->addStretch();
 
-    QLabel *ver = new QLabel("v3.2.2");
+    QLabel *ver = new QLabel("v3.2.3");
     ver->setObjectName("versionLabel");
     ver->setAlignment(Qt::AlignCenter);
     ver->setContentsMargins(0,0,0,16);
@@ -1120,6 +1134,24 @@ QString MainWindow::renderMarkdown(const QString &md) const
             continue;
         }
 
+        // Horizontal rule --- / *** / ___
+        {
+            QRegularExpression hrRe("^(-{3,}|\\*{3,}|_{3,})\\s*$");
+            if (hrRe.match(raw.trimmed()).hasMatch()) {
+                closeList();
+                html += "<hr style='border:none;border-top:2px solid #555;margin:12px 0;'>";
+                continue;
+            }
+        }
+
+        // Blockquote > text
+        if (raw.startsWith("> ")) {
+            closeList();
+            html += "<blockquote style='border-left:4px solid #888;margin:8px 0;padding:4px 14px;color:#888;'>"
+                    + processInline(raw.mid(2)) + "</blockquote>";
+            continue;
+        }
+
         // Headings
         if (raw.startsWith("### "))     { closeList(); html += "<h3>" + processInline(raw.mid(4)) + "</h3>"; continue; }
         if (raw.startsWith("## "))      { closeList(); html += "<h2>" + processInline(raw.mid(3)) + "</h2>"; continue; }
@@ -1134,12 +1166,13 @@ QString MainWindow::renderMarkdown(const QString &md) const
             continue;
         }
 
-        // Ordered list
-        QRegularExpression olRe("^\\d+\\.\\s+(.+)$");
+        // Ordered list – 手动编号避免 QTextEdit 的 <ol> 渲染缺陷
+        QRegularExpression olRe("^(\\d+)\\.\\s+(.+)$");
         auto olM = olRe.match(raw);
         if (olM.hasMatch()) {
-            if (listType != 2) { closeList(); html += "<ol>"; listType = 2; }
-            html += "<li>" + processInline(olM.captured(1)) + "</li>";
+            closeList();
+            html += QString("<p style='margin:4px 0;padding-left:1em;'><b>%1.</b> %2</p>")
+                        .arg(olM.captured(1), processInline(olM.captured(2)));
             continue;
         }
 
@@ -1157,20 +1190,42 @@ QString MainWindow::renderMarkdown(const QString &md) const
 QString MainWindow::processInline(const QString &text) const
 {
     QString r = text;
-    // 先保护行内代码中的格式化标记
-    r.replace(QRegularExpression("`([^`]+)`"), "\x01code\x01\\1\x01endcode\x01");
-    // 然后转义HTML
+
+    // Step 1: protect inline code with opaque placeholders
+    QRegularExpression codeRe("`([^`]+)`");
+    QStringList codes;
+    int pos = 0;
+    QString result;
+    QRegularExpressionMatchIterator it = codeRe.globalMatch(r);
+    while (it.hasNext()) {
+        QRegularExpressionMatch m = it.next();
+        result += r.mid(pos, m.capturedStart() - pos);
+        codes.append(m.captured(1));
+        result += QStringLiteral("\x01CODE%1\x01").arg(codes.size() - 1);
+        pos = m.capturedEnd();
+    }
+    result += r.mid(pos);
+    r = result;
+
+    // Step 2: escape HTML
     r = r.toHtmlEscaped();
-    // 粗体（支持三连星号 ***text***）
+
+    // Step 3: apply inline formatting and links
     r.replace(QRegularExpression("\\*\\*\\*(.+?)\\*\\*\\*"), "<b><i>\\1</i></b>");
     r.replace(QRegularExpression("\\*\\*(.+?)\\*\\*"), "<b>\\1</b>");
     r.replace(QRegularExpression("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), "<i>\\1</i>");
-    // 链接（转义URL中的单引号）
+    r.replace(QRegularExpression("~~(.+?)~~"), "<s>\\1</s>");
     r.replace(QRegularExpression("\\[([^\\]]+)\\]\\(([^)]+)\\)"),
               "<a href='\\2' target='_blank'>\\1</a>");
-    // 还原行内代码
-    r.replace("\x01code\x01", "<code>");
-    r.replace("\x01endcode\x01", "</code>");
+    r.replace(QRegularExpression("!\\[([^\\]]*)\\]\\(([^)]+)\\)"),
+              "<a href='\\2' target='_blank'>[图片] \\1</a>");
+
+    // Step 4: restore inline code (content gets HTML-escaped here)
+    for (int i = 0; i < codes.size(); ++i) {
+        r.replace(QStringLiteral("\x01CODE%1\x01").arg(i),
+                  "<code>" + codes[i].toHtmlEscaped() + "</code>");
+    }
+
     r.replace("\n", "<br>");
     return r;
 }

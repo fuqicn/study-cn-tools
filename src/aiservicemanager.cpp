@@ -19,6 +19,7 @@ AiServiceManager::AiServiceManager(QObject *parent)
     , m_currentReply(nullptr)
     , m_requestSerial(0)
     , m_currentSerial(0)
+    , m_streamFinished(false)
 {
 }
 
@@ -112,6 +113,8 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         return;
     }
 
+    m_streamFinished = false;
+
     if (provider == "ollama") {
         QUrl apiUrl(normalizeUrl(url) + "/api/generate");
         QNetworkRequest request(apiUrl);
@@ -135,8 +138,8 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         quint64 mySerial = m_currentSerial;
 
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
-        connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
-        connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
+        QObject::connect(m_currentReply, &QNetworkReply::finished,  this, &AiServiceManager::onChatReplyFinished);
+        QObject::connect(m_currentReply, &QNetworkReply::readyRead, this, &AiServiceManager::onReadyRead);
         QTimer::singleShot(60000, m_currentReply, [this, mySerial]() {
             if (mySerial == m_currentSerial && m_currentReply && m_currentReply->isRunning()) {
                 m_currentReply->abort();
@@ -145,7 +148,6 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         });
 
     } else if (provider == "deepseek") {
-        // DeepSeek 使用 OpenAI 兼容 API
         QUrl apiUrl(normalizeUrl(url) + "/chat/completions");
         QNetworkRequest request(apiUrl);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -156,7 +158,6 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         json["model"] = actualModel;
         json["stream"] = true;
 
-        // 构建消息数组
         QJsonArray messages;
         if (!systemPrompt.isEmpty()) {
             QJsonObject sysMsg;
@@ -182,8 +183,8 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         quint64 mySerial = m_currentSerial;
 
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
-        connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
-        connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
+        QObject::connect(m_currentReply, &QNetworkReply::finished,  this, &AiServiceManager::onChatReplyFinished);
+        QObject::connect(m_currentReply, &QNetworkReply::readyRead, this, &AiServiceManager::onReadyRead);
         QTimer::singleShot(60000, m_currentReply, [this, mySerial]() {
             if (mySerial == m_currentSerial && m_currentReply && m_currentReply->isRunning()) {
                 m_currentReply->abort();
@@ -193,10 +194,19 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
     }
 }
 
+void AiServiceManager::maybeEmitResponseReceived()
+{
+    if (m_streamFinished) return;
+    m_streamFinished = true;
+    emit responseReceived("");
+}
+
 /*  Core streaming logic — buffer incomplete lines, parse complete ones  */
 void AiServiceManager::onReadyRead()
 {
     if (!m_currentReply) return;
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    if (reply && reply != m_currentReply) return;
     m_buffer += m_currentReply->readAll();
     if (m_buffer.size() > 1024 * 1024) {
         m_currentReply->abort();
@@ -220,10 +230,9 @@ void AiServiceManager::processBuffer(bool isFinal)
                     if (!doc.isNull()) {
                         QString resp = doc.object().value("response").toString();
                         if (!resp.isEmpty()) emit responseChunk(resp);
-                        if (doc.object().value("done").toBool()) emit responseReceived("");
+                        if (doc.object().value("done").toBool()) maybeEmitResponseReceived();
                     }
                 } else if (m_currentProvider == "deepseek") {
-                    // DeepSeek SSE: data: {...}
                     QString lineStr = QString::fromUtf8(line);
                     if (lineStr.startsWith("data: ")) {
                         QString jsonStr = lineStr.mid(6);
@@ -236,11 +245,11 @@ void AiServiceManager::processBuffer(bool isFinal)
                                 if (!content.isEmpty()) emit responseChunk(content);
                                 if (doc.object().value("choices").toArray()[0].toObject()
                                         .value("finish_reason").toString() == "stop") {
-                                    emit responseReceived("");
+                                    maybeEmitResponseReceived();
                                 }
                             }
                         } else {
-                            emit responseReceived("");
+                            maybeEmitResponseReceived();
                         }
                     }
                 }
@@ -257,15 +266,14 @@ void AiServiceManager::processBuffer(bool isFinal)
 
             QString resp = doc.object().value("response").toString();
             if (!resp.isEmpty()) emit responseChunk(resp);
-            if (doc.object().value("done").toBool()) emit responseReceived("");
+            if (doc.object().value("done").toBool()) maybeEmitResponseReceived();
 
         } else if (m_currentProvider == "deepseek") {
-            // DeepSeek SSE format: data: {...}
             QString lineStr = QString::fromUtf8(line);
             if (lineStr.startsWith("data: ")) {
                 QString jsonStr = lineStr.mid(6);
                 if (jsonStr == "[DONE]") {
-                    emit responseReceived("");
+                    maybeEmitResponseReceived();
                     break;
                 }
                 QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
@@ -280,7 +288,7 @@ void AiServiceManager::processBuffer(bool isFinal)
 
                     QString finishReason = choices[0].toObject().value("finish_reason").toString();
                     if (finishReason == "stop") {
-                        emit responseReceived("");
+                        maybeEmitResponseReceived();
                         break;
                     }
                 }
@@ -294,12 +302,24 @@ void AiServiceManager::onChatReplyFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     if (!reply) return;
 
+    // 忽略被中止或被替换的旧回复（例如切换到答题时中止的聊天请求）
+    if (reply != m_currentReply) {
+        reply->deleteLater();
+        return;
+    }
+    // 被手动中止的请求，不触发任何信号
+    if (reply->error() == QNetworkReply::OperationCanceledError) {
+        m_buffer.clear();
+        reply->deleteLater();
+        m_currentReply = nullptr;
+        return;
+    }
+
     if (reply->error() == QNetworkReply::NoError) {
         processBuffer(true);
-        // 确保流终止：如果 AI 没有发送明确的终止标记，兜底发射
-        emit responseReceived("");
+        // 兜底：如果流中没有明确的终止标记，在此处确保终止
+        maybeEmitResponseReceived();
     } else {
-        // 错误发生时仍然处理缓冲区中可能的部分数据（但标记为最终）
         processBuffer(true);
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 401) {
