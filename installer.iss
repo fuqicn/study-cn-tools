@@ -15,8 +15,10 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
 DefaultDirName={autopf}\{#AppName}
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline
+ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
 UsedUserAreasWarning=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
@@ -171,29 +173,23 @@ Filename: "{app}\{#AppExeName}"; Description: "{cm:RunAfterInstall}"; Flags: now
 [Code]
 var
   FeaturePage: TOutputMsgMemoWizardPage;
-  InstallScopePage: TInputOptionWizardPage;
 
-function IsAdminUser: Boolean;
+// 安装前检查：仅支持 64 位 Windows 10+
+function InitializeSetup: Boolean;
 begin
-  Result := IsAdmin;
+  Result := True;
+  if not IsWin64 then
+  begin
+    MsgBox('本软件仅支持 64 位 Windows 10 及以上系统。'#13#13'请安装 64 位 Windows 10 或更高版本。',
+      mbError, MB_OK);
+    Result := False;
+  end;
 end;
 
-// 判断当前是否为"所有用户"安装模式
-function IsAllUsersMode: Boolean;
-begin
-  // 优先级：命令行参数 > 安装范围页的选择
-  if ExpandConstant('{param:ALLUSERS|}') <> '' then
-    Result := True
-  else if ExpandConstant('{param:CURRENTUSER|}') <> '' then
-    Result := False
-  else
-    Result := InstallScopePage.Values[0];
-end;
-
-// 设置存储目录
+// 设置存储目录（根据 Inno Setup 内置的安装范围判定）
 function GetSettingsDir(Param: String): String;
 begin
-  if IsAllUsersMode then
+  if IsAdminInstallMode then
     Result := ExpandConstant('{commonappdata}\DefenseEdu')
   else
     Result := ExpandConstant('{localappdata}\DefenseEdu');
@@ -201,27 +197,6 @@ end;
 
 procedure InitializeWizard;
 begin
-  // 安装范围选择页（在欢迎页之后、许可协议页之前）
-  InstallScopePage := CreateInputOptionPage(
-    wpWelcome,
-    '选择安装范围',
-    '请选择安装范围',
-    '选择「所有用户」需要管理员权限。',
-    True,   // exclusive (radio buttons)
-    False   // not list boxes
-  );
-  InstallScopePage.Add('安装给所有用户（需要管理员权限）');
-  InstallScopePage.Add('仅安装给当前用户');
-  InstallScopePage.Values[0] := IsAdminUser;
-  InstallScopePage.Values[1] := not IsAdminUser;
-
-  // 非管理员默认仅当前用户（选择项保持可用，用户自行决定）
-  if not IsAdminUser then
-  begin
-    InstallScopePage.Values[0] := False;
-    InstallScopePage.Values[1] := True;
-  end;
-
   // 在「准备安装」页面之前，插入功能介绍页面
   FeaturePage := CreateOutputMsgMemoPage(
     wpReady,
@@ -284,70 +259,6 @@ begin
     '}';
 end;
 
-// 如果是通过提权重启的（命令行带 /ALLUSERS 或 /CURRENTUSER），跳过安装范围选择页
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  if PageID = InstallScopePage.ID then
-    Result := (ExpandConstant('{param:ALLUSERS|}') <> '') or
-              (ExpandConstant('{param:CURRENTUSER|}') <> '')
-  else
-    Result := False;
-end;
-
-// 点击"下一步"时的处理
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  ErrorCode: Integer;
-begin
-  Result := True;
-
-  if CurPageID = InstallScopePage.ID then
-  begin
-    if InstallScopePage.Values[0] and not IsAdminUser then
-    begin
-      // 用户选择了「所有用户」但当前不是管理员
-      // 以管理员身份重启安装程序，传入 /ALLUSERS 标记
-      if ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS /NORESTART',
-                   '', SW_SHOW, ewNoWait, ErrorCode) then
-      begin
-        Result := False;  // 关闭当前（非管理员）安装程序
-      end
-      else
-      begin
-        // 提权失败（用户取消UAC等）
-        if MsgBox('无法以管理员身份运行安装程序。'#13#13 +
-                  '要继续安装给所有用户，请以管理员身份重新运行本安装程序。'#13#13 +
-                  '是否改为仅安装给当前用户？',
-                  mbError, MB_YESNO) = IDYES then
-        begin
-          InstallScopePage.Values[0] := False;
-          InstallScopePage.Values[1] := True;
-          Result := True;
-        end
-        else
-          Result := False;  // 取消安装
-      end;
-    end;
-  end;
-end;
-
-// 页面切换时动态调整安装目录
-procedure CurPageChanged(CurPageID: Integer);
-var
-  NewDir: String;
-begin
-  if CurPageID = wpSelectDir then
-  begin
-    if not IsAllUsersMode then
-    begin
-      NewDir := ExpandConstant('{userpf}\{#AppName}');
-      // 仅当用户未手动修改过目录时才自动切换
-      if WizardForm.DirEdit.Text = ExpandConstant('{autopf}\{#AppName}') then
-        WizardForm.DirEdit.Text := NewDir;
-    end;
-  end;
-end;
-
 // 安装后处理
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -357,7 +268,7 @@ begin
   begin
     // 写入安装范围标记文件
     ScopeFile := ExpandConstant('{app}\.install-scope');
-    if IsAllUsersMode then
+    if IsAdminInstallMode then
       SaveStringToFile(ScopeFile, 'all', False)
     else
       SaveStringToFile(ScopeFile, 'user', False);
