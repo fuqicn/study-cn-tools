@@ -103,29 +103,27 @@ ISCC.exe installer.iss
 ## 项目结构
 
 ```
-defense-edu/
-├── code/                       # 源代码与项目配置
-│   ├── src/                   # C++ 源代码
-│   │   ├── main.cpp          # 程序入口
-│   │   ├── mainwindow.cpp/h  # 主窗口
-│   │   ├── aiservicemanager.cpp/h   # AI 服务管理
-│   │   ├── settingsmanager.cpp/h    # 设置管理
-│   │   ├── timelinewidget.cpp/h     # 数轴时间轴控件
-│   │   ├── gamewidget.cpp/h  # 激光防御游戏控件
-│   │   ├── firstrundialog.cpp/h     # 首次运行向导
-│   │   └── tutorialdialog.cpp/h     # 交互式教程
-│   ├── resources/            # 资源文件
-│   │   ├── resources.qrc    # Qt 资源
-│   │   ├── app.rc           # Windows 版本信息
-│   │   ├── changelog.md     # 更新日志
-│   │   └── icon.ico         # 程序图标
-│   ├── build/               # 编译输出目录（生成的）
-│   ├── installer.iss        # Inno Setup 安装脚本
-│   └── defense-edu.pro      # Qt 项目文件
-├── appfolder/                # 部署目录（含 Qt 运行时）
-├── installer_output/         # 安装包输出目录
-├── build.bat                 # 一键编译部署脚本
-└── README.md                 # 本文件
+code/                       # 源代码与项目配置
+├── src/                   # C++ 源代码
+│   ├── main.cpp          # 程序入口
+│   ├── mainwindow.cpp/h  # 主窗口
+│   ├── aiservicemanager.cpp/h   # AI 服务管理
+│   ├── settingsmanager.cpp/h    # 设置管理
+│   ├── timelinewidget.cpp/h     # 数轴时间轴控件
+│   ├── gamewidget.cpp/h  # 激光防御游戏控件
+│   ├── firstrundialog.cpp/h     # 首次运行向导
+│   └── tutorialdialog.cpp/h     # 交互式教程
+├── resources/            # 资源文件
+│   ├── resources.qrc    # Qt 资源描述
+│   ├── app.rc           # Windows 版本信息
+│   ├── changelog.md     # 更新日志
+│   └── icon.ico         # 程序图标
+├── .gitignore
+├── build.bat            # 一键编译部署脚本
+├── defense-edu.pro      # Qt 项目文件
+├── installer.iss        # Inno Setup 安装脚本
+├── LICENSE.txt          # 声明文件
+└── README.md            # 本文件
 ```
 
 ## 技术栈
