@@ -1,31 +1,11 @@
 #include "settingsmanager.h"
 #include <QApplication>
-#include <QDir>
-#include <QFile>
-#include <QStandardPaths>
 #include <QStringList>
 
 QString SettingsManager::defaultSettingsPath()
 {
     QString appDir = QApplication::applicationDirPath();
-    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
-    QString progDataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/DefenseEdu";
-
-    QString scopeFile = appDir + "/.install-scope";
-    if (QFile::exists(scopeFile)) {
-        QFile f(scopeFile);
-        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString scope = QString::fromUtf8(f.readAll()).trimmed();
-            f.close();
-            if (scope == "all") {
-                QDir().mkpath(progDataPath);
-                return progDataPath + "/settings.ini";
-            }
-        }
-    }
-
-    QDir().mkpath(appDataPath);
-    return appDataPath + "/settings.ini";
+    return appDir + "/settings.ini";
 }
 
 SettingsManager::SettingsManager(QObject *parent)

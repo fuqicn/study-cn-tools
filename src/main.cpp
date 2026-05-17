@@ -1,10 +1,8 @@
 #include <QApplication>
 #include <QSettings>
-#include <QDir>
 #include <QTimer>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QStandardPaths>
 #include "mainwindow.h"
 #include "firstrundialog.h"
 #include "tutorialdialog.h"

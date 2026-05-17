@@ -12,7 +12,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
-#include <QStandardPaths>
 
 static bool systemDarkMode()
 {
