@@ -95,6 +95,33 @@ UninstallStatusLabel=正在从您的计算机中删除 {#AppName}，请稍候...
 ConfirmUninstall=您确定要完全删除 {#AppName} 及其所有组件吗？
 UninstallNotFound=未找到卸载日志文件。%n%n是否仍然删除程序组和图标？
 NoUninstallWarning=卸载程序可能无法完全删除程序的所有文件。%n%n是否继续？
+SelectStartMenuFolderLabel3=安装程序将在以下开始菜单文件夹中创建程序快捷方式。
+SelectStartMenuFolderDesc=请选择开始菜单文件夹以放置程序快捷方式。
+SelectStartMenuFolderBrowseLabel=如需选择其他文件夹，请点击「浏览」。
+DiskSpaceMBLabel=至少需要 [mb] MB 的可用磁盘空间。
+DiskSpaceGBLabel=至少需要 [gb] GB 的可用磁盘空间。
+DiskSpaceWarning=安装程序需要至少 %1 KB 的可用空间，但所选驱动器只有 %2 KB。%n%n是否仍然继续？
+DiskSpaceWarningTitle=磁盘空间不足
+ExtractingLabel=正在提取文件...
+SelectTasksDesc=需要执行哪些附加任务？
+SelectTasksLabel2=请选择安装程序在安装 {#AppName} 时需要执行的附加任务，然后点击「下一步」。
+WizardPreparing=准备安装
+WizardSelectTasks=选择附加任务
+PreparingDesc=安装程序正在准备将 {#AppName} 安装到您的计算机。
+SelectDirectoryLabel=请指定下一张磁盘的位置。
+StatusClosingApplications=正在关闭应用程序...
+StatusRestartingApplications=正在重新启动应用程序...
+InfoBeforeLabel=请先阅读以下重要信息，然后再继续。
+InfoAfterLabel=请在继续之前阅读以下重要信息。
+DirDoesntExist=文件夹：%n%n%1%n%n不存在。是否创建该文件夹？
+DirDoesntExistTitle=文件夹不存在
+DirExists=文件夹：%n%n%1%n%n已存在。是否仍然安装到该文件夹？
+DirExistsTitle=文件夹已存在
+NoProgramGroupCheck2=不创建开始菜单文件夹
+SetupAborted=安装未完成。%n%n请纠正问题后重新运行安装程序。
+UninstallAppFullTitle=卸载 {#AppName}
+UninstallAppRunningError=卸载程序检测到 {#AppName} 正在运行。%n%n请关闭所有实例，然后点击「确定」继续，或点击「取消」退出。
+ButtonNewFolder=新建文件夹(&M)
 
 
 
