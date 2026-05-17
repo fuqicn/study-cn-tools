@@ -61,21 +61,13 @@ ButtonBack=< 上一步(&B)
 ButtonCancel=取消
 ButtonFinish=完成(&F)
 ButtonBrowse=浏览(&R)...
-SelectDirDesc=选择 {#AppName} 的安装目录
-ReadyMemoDir=安装目录:
-ReadyMemoGroup=开始菜单文件夹:
-ReadyMemoTasks=附加任务:
 ExitSetupMessage=您确定要退出安装程序吗？%n%n安装尚未完成。
 AboutSetupMenuItem=关于安装程序(&A)
 AboutSetupMessage=安装程序版本: %1%n%n版权所有(C) 2026 傅琪%n%n本安装程序使用 Inno Setup 制作。%n%nhttps://www.innosetup.com/
 BrowseDialogTitle=浏览文件夹
 BrowseDialogLabel=请选择目标文件夹：
 SetupLdrStartupMessage=安装程序将安装 {#AppName}。是否继续？
-UninstallStatusLabel=正在从您的计算机中删除 {#AppName}，请稍候...
 UninstalledAll={#AppName} 已成功从您的计算机中删除。
-ConfirmUninstall=您确定要完全删除 {#AppName} 及其所有组件吗？
-UninstallNotFound=未找到卸载日志文件。%n%n是否仍然删除程序组和图标？
-NoUninstallWarning=卸载程序可能无法完全删除程序的所有文件。%n%n是否继续？
 StatusCreateDirs=正在创建目录...
 StatusCreateIcons=正在创建快捷方式...
 StatusCreateIniEntries=正在创建 INI 条目...
@@ -84,6 +76,25 @@ StatusRegisterFiles=正在注册文件...
 StatusSavingUninstall=正在保存卸载信息...
 StatusRunProgram=正在完成安装...
 StatusRollback=正在回滚更改...
+StatusExtractFiles=正在提取文件...
+SelectDirDesc=选择 {#AppName} 的安装目录
+ReadyLabel2b=安装类型：
+ReadyMemoUserInfo=用户信息：
+ReadyMemoDir=安装目录：
+ReadyMemoGroup=开始菜单文件夹：
+ReadyMemoTasks=附加任务：
+FinishedRestartLabel=是否立即重启计算机？
+FinishedRestartMessage=点击「完成」以重启计算机。%n%n请先保存您的工作，然后继续。
+WinVersionTooLowError=此安装程序需要 %1 或更高版本。
+CannotInstallToNetworkDrive=无法安装到网络驱动器。
+ApplicationsFound=以下应用程序正在使用需要更新的文件。建议您关闭这些应用程序以允许安装程序更新它们。
+ApplicationsFound2=请关闭以下应用程序：%n%n%1
+ChangeDiskTitle=更改磁盘
+UninstallStatusLabel=正在从您的计算机中删除 {#AppName}，请稍候...
+ConfirmUninstall=您确定要完全删除 {#AppName} 及其所有组件吗？
+UninstallNotFound=未找到卸载日志文件。%n%n是否仍然删除程序组和图标？
+NoUninstallWarning=卸载程序可能无法完全删除程序的所有文件。%n%n是否继续？
+
 
 
 [CustomMessages]
@@ -136,23 +147,6 @@ var
   InstallScopePage: TInputOptionWizardPage;
   IsAllUsers: Boolean;
 
-function IsAdmin: Boolean;
-begin
-  Result := IsAdminInstallMode;
-end;
-
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  // 如果不是管理员，跳过安装范围选择（仅当前用户）
-  if (PageID = InstallScopePage.ID) and not IsAdmin then
-  begin
-    IsAllUsers := False;
-    Result := True;
-  end
-  else
-    Result := False;
-end;
-
 procedure InitializeWizard;
 begin
   // 安装范围选择页（在欢迎页之后、许可协议页之前）
@@ -166,8 +160,8 @@ begin
   );
   InstallScopePage.Add('安装给所有用户（需要管理员权限）');
   InstallScopePage.Add('仅安装给当前用户');
-  InstallScopePage.Values[0] := IsAdmin;
-  InstallScopePage.Values[1] := not IsAdmin;
+  InstallScopePage.Values[0] := IsAdminInstallMode;
+  InstallScopePage.Values[1] := not IsAdminInstallMode;
 
   // 在「准备安装」页面之前，插入功能介绍页面
   FeaturePage := CreateOutputMsgMemoPage(
