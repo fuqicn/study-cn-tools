@@ -173,12 +173,6 @@ var
   FeaturePage: TOutputMsgMemoWizardPage;
   InstallScopePage: TInputOptionWizardPage;
 
-const
-  BCM_SETSHIELD = $0000160C;
-
-function SendMessage(hWnd: Integer; Msg: Integer; wParam: Integer; lParam: Integer): Integer;
-  external 'SendMessageW@user32.dll stdcall';
-
 function IsAdminUser: Boolean;
 begin
   Result := IsAdmin;
@@ -212,16 +206,6 @@ begin
     Result := ExpandConstant('{commonappdata}\DefenseEdu')
   else
     Result := ExpandConstant('{localappdata}\DefenseEdu');
-end;
-
-// 更新"下一步"按钮的盾牌图标
-procedure UpdateShield;
-begin
-  // 选择「所有用户」且当前不是管理员 → 显示盾牌
-  if InstallScopePage.Values[0] and not IsAdminUser then
-    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 1)
-  else
-    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 0);
 end;
 
 procedure InitializeWizard;
@@ -347,7 +331,6 @@ begin
         begin
           InstallScopePage.Values[0] := False;
           InstallScopePage.Values[1] := True;
-          UpdateShield;
           Result := True;
         end
         else
@@ -355,13 +338,6 @@ begin
       end;
     end;
   end;
-end;
-
-// 页面切换时更新盾牌
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  if CurPageID = InstallScopePage.ID then
-    UpdateShield;
 end;
 
 // 安装后处理
