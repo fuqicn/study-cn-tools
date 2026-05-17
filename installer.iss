@@ -16,7 +16,7 @@ AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
 DefaultDirName={autopf}\{#AppName}
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=commandline dialog
+PrivilegesRequiredOverridesAllowed=commandline
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
 OutputDir=..\installer_output
@@ -38,7 +38,7 @@ SetupWindowTitle=安装 - {#AppName}
 WelcomeLabel1=欢迎使用 {#AppName} 安装向导
 WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.2 改进：修复多项 Bug、设置存储位置变更、安装范围选择。
 SelectDirLabel3=安装程序将把 {#AppName} 安装到以下文件夹。
-SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。%n%n选择安装范围：
+SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。
 ReadyLabel1=安装程序已准备好将 {#AppName} 安装到您的计算机。
 ReadyLabel2a=点击「安装」开始安装，或点击「上一步」修改设置。
 InstallingLabel=正在安装 {#AppName}，请稍候...
@@ -161,7 +161,7 @@ begin
     '选择安装范围',
     '请选择安装范围',
     '选择「所有用户」需要管理员权限。',
-    False,  // not exclusive (radio buttons are auto-exclusive)
+    True,   // exclusive (radio buttons)
     False   // not list boxes
   );
   InstallScopePage.Add('安装给所有用户（需要管理员权限）');
