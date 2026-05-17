@@ -1,6 +1,83 @@
 # 更新日志
 
+## v3.2.3 - 2026-05-17
+
+**Bug 修复（28+ 项）：**
+- 修复 AI 超时定时器误杀新请求：引入 `m_requestSerial`/`m_currentSerial` 序列号机制
+- 修复流式响应末尾不触发 `responseReceived`：添加兜底 `emit responseReceived("")`
+- 修复 `onChatReplyFinished` 中 `processBuffer` 调用顺序导致的尾部丢失
+- 修复聊天记录无限累积：改用 `QStringList m_chatHistory` 限制 100 条上限
+- 修复 `processInline` 中行内代码内粗体/斜体被错误解析：改用不透明占位符方案
+- 修复 Markdown 渲染中转义顺序导致的 `<b>` 标签被编码
+- 修复 `generateQuiz` 中 `onErrorOccurred` 信号泄漏：同时断开聊天模式的 error 连接
+- 修复 `sendChatMessage` 中仅断开了答题信号但未断开同级同名信号
+- 修复 `saveSettings` 中保存"自定义"字面量作为模型名导致 Ollama 请求失败
+- 修复 `onModelsFetched` 中竞态问题：切换服务商后模型列表不恢复、provider 读取不一致
+- 修复主窗口构造中 `disconnect(btn, nullptr, this, nullptr)` 过于宽泛的问题
+- 修复知识答题选项前缀重复：数据中已含"A."前缀，不再额外添加
+- 修复 AI 回答未存入聊天历史：`onResponseReceived` 中追加到 `m_chatHistory`
+- 修复文本框频繁写盘导致 UI 卡顿：引入 500ms 防抖定时器
+- 修复游戏 `resetGame` 未重置 `m_paused` 状态：点击重新开始后仍显示暂停
+- 修复教程遮罩 `mapToGlobal` 坐标偏移导致高亮区域错位的问题
+- 修复教程点击任意位置前进：改为仅点击下一按钮才前进，点击目标区域穿透下层控件
+- 修复模型选择下拉框不可编辑：设置为可编辑并添加 placeholder
+- 修复 AI 回复重复出现：引入 `m_streamFinished` 防止 `responseReceived` 双重发射
+- 修复 AI 回复时切换到答题导致闪退：`sendMessage` 中先置 `m_currentReply = nullptr` 再 `abort()`，防止 `onChatReplyFinished` 回写后空指针崩溃
+- 修复有序列表渲染只有"1"：改用手动编号避免 QTextEdit `<ol>` 渲染缺陷
+- 修复 Markdown 渲染缺少引用块和分隔线支持
+- 修复行内代码中 `**` 等标记被错误渲染：改为先将代码内容 HTML 转义再存入不透明占位符
+
+**代码改进：**
+- 移除 `main.cpp`、`settingsmanager.cpp`、`firstrundialog.cpp` 中的重复代码路径
+- 统一设置路径入口为 `SettingsManager::defaultSettingsPath()`
+- 设置文件保存到程序目录（settings.ini），不再依赖 AppData
+- 多处 `saveSettings` 调用改为防抖方式，提升性能
+
+**界面改进：**
+- 滚动条改造为现代窄条样式（8px 圆角滑块），适配深色/浅色主题
+
+---
+
 ## v3.2.2 - 2026-05-17
+
+**重大修复：**
+- 修复 AI 服务管理器中的缓冲区竞态条件：`abort()` 触发前先清空缓冲区，防止旧响应污染新请求
+- 修复 AI 答题模式下聊天信号处理函数误触发导致界面错乱的问题
+- 修复首次运行向导内存泄漏：`createFeaturesPage()` 中重复创建布局
+- 修复游戏物理计时器不使用真实耗时的问题：改用 `QElapsedTimer`，消除系统负载高时的慢动作
+- 修复游戏无人机 `hp` 字段无效的问题：实际应用血量并随波次递增
+- 修复聊天历史因子串匹配被意外清空的问题
+- 修复答题完成按钮过度使用 `disconnect(btn, nullptr, this, nullptr)` 的问题，改为精确断开
+- 修复许可协议页验证失败后复选框文字始终为红色不恢复的问题
+
+**设置系统重构：**
+- 设置文件存储位置变更：仅当前用户安装 → `%LOCALAPPDATA%/DefenseEdu/settings.ini`
+- 全用户安装 → `%PROGRAMDATA%/DefenseEdu/settings.ini`
+- 通过 `.install-scope` 标记文件自动判断作用域
+
+**安装程序改进：**
+- 安装包运行时提供「安装给所有用户」和「仅安装给当前用户」的选择
+- 非管理员用户自动跳过安装范围选择（强制仅当前用户）
+- 卸载时同时清理 AppData 和 ProgramData 下的设置文件
+
+**移除重复/死代码：**
+- 移除从未被使用的 `OllamaManager` 类（`ollamamanager.cpp/h`），`AiServiceManager` 已覆盖全部功能
+- 移除 `MainWindow` 中声明的无用成员 `m_cardAnims`
+
+**网络层改进：**
+- AI 服务请求添加 60 秒超时机制，防止无限等待
+- 流式响应添加 1MB 缓冲区上限，防止异常响应导致内存溢出
+
+**精简优化：**
+- 游戏栏样式跟随主题，不再固定深色
+- 时间轴拖动/缩放添加边界限制，防止无限滑动
+- 教程遮罩点击事件简化：点击任意位置前进
+- 单实例服务名添加用户名后缀，避免多用户冲突
+- 多个文件中的重复 `systemDarkMode()` 函数已合并
+
+---
+
+## v3.2.1 - 2026-05-16
 
 **新功能：**
 - 单实例启动时自动唤醒已有窗口
