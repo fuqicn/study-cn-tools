@@ -129,9 +129,10 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
 
         m_buffer.clear();
         if (m_currentReply) {
-            m_currentReply->abort();
-            m_currentReply->deleteLater();
+            QNetworkReply *oldReply = m_currentReply;
             m_currentReply = nullptr;
+            oldReply->abort();
+            oldReply->deleteLater();
         }
 
         m_currentSerial = ++m_requestSerial;
@@ -174,9 +175,10 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
 
         m_buffer.clear();
         if (m_currentReply) {
-            m_currentReply->abort();
-            m_currentReply->deleteLater();
+            QNetworkReply *oldReply = m_currentReply;
             m_currentReply = nullptr;
+            oldReply->abort();
+            oldReply->deleteLater();
         }
 
         m_currentSerial = ++m_requestSerial;
