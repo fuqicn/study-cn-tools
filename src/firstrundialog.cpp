@@ -1,5 +1,6 @@
 #include "firstrundialog.h"
 #include <QApplication>
+#include <QDir>
 #include <QTextCursor>
 #include <QTextCharFormat>
 #include <QFile>
@@ -10,6 +11,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QStandardPaths>
 
 static bool systemDarkMode()
 {
@@ -145,7 +147,7 @@ QWidget* FirstRunDialog::createWelcomePage()
     title->setAlignment(Qt::AlignCenter);
     fl->addWidget(title);
 
-    QLabel *sub = new QLabel("v3.1.1 \u2022 制作者：傅琪");
+    QLabel *sub = new QLabel("v3.2.2 \u2022 制作者：傅琪");
     sub->setObjectName("welcomeSub");
     sub->setAlignment(Qt::AlignCenter);
     fl->addWidget(sub);
@@ -186,7 +188,7 @@ QWidget* FirstRunDialog::createLicensePage()
     licenseText->setReadOnly(true);
     licenseText->setHtml(
         "<h3 style='color:#c41e3a;'>国防安全科普教育软件 使用许可协议</h3>"
-        "<p><b>版本：3.0.0</b></p>"
+        "<p><b>版本：3.2.2</b></p>"
         "<hr>"
         "<p><b>一、软件说明</b></p>"
         "<p>本软件是一款国防安全科普教育工具，集成了国防装备展示、发展历程时间轴、"
@@ -525,9 +527,10 @@ QWidget* FirstRunDialog::createFeaturesPage()
 
     lay->addStretch();
     scroll->setWidget(content);
-    lay = new QVBoxLayout(page);
-    lay->setContentsMargins(0, 0, 0, 0);
-    lay->addWidget(scroll);
+
+    QVBoxLayout *pageLay = new QVBoxLayout(page);
+    pageLay->setContentsMargins(0, 0, 0, 0);
+    pageLay->addWidget(scroll);
 
     return page;
 }
@@ -596,6 +599,10 @@ void FirstRunDialog::goToPrevPage()
     if (page > 0) {
         m_stack->setCurrentIndex(page - 1);
         updateNavButtons();
+        // 离开许可协议页时重置复选框样式
+        if (page == 1) {
+            m_licenseCheck->setStyleSheet("font-size: 14px; padding: 8px 0;");
+        }
     }
 }
 
@@ -608,6 +615,10 @@ void FirstRunDialog::goToNextPage()
     if (page == 1 && !m_licenseCheck->isChecked()) {
         m_licenseCheck->setStyleSheet("color: #ff4444; font-size: 14px; padding: 8px 0;");
         return;
+    }
+    // 重置许可协议复选框样式（如果之前验证失败变红）
+    if (page == 1 && m_licenseCheck->isChecked()) {
+        m_licenseCheck->setStyleSheet("font-size: 14px; padding: 8px 0;");
     }
 
     if (page < total - 1) {
@@ -626,7 +637,9 @@ void FirstRunDialog::goToNextPage()
 void FirstRunDialog::finishSetup()
 {
     // Save the selected model to settings
-    QString settingsPath = QApplication::applicationDirPath() + "/settings.ini";
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
+    QDir().mkpath(appDataPath);
+    QString settingsPath = appDataPath + "/settings.ini";
     QSettings settings(settingsPath, QSettings::IniFormat);
 
     // Save theme

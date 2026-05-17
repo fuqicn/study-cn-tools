@@ -284,6 +284,10 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *event)
     if (m_dragging) {
         int dx = event->pos().x() - m_lastPos.x();
         m_centerOffset -= dx / m_pixelsPerNode;
+        // Clamp to boundaries
+        if (!m_items.isEmpty()) {
+            m_centerOffset = qBound(-0.5, m_centerOffset, (double)m_items.size() - 0.5);
+        }
         m_lastPos = event->pos();
         update();
     }
@@ -308,6 +312,10 @@ void TimelineWidget::wheelEvent(QWheelEvent *event)
     double mouseNode = xToNode(event->position().x());
     m_pixelsPerNode = newPPN;
     m_centerOffset = mouseNode - (event->position().x() - width() / 2.0) / m_pixelsPerNode;
+    // Clamp to boundaries
+    if (!m_items.isEmpty()) {
+        m_centerOffset = qBound(-0.5, m_centerOffset, (double)m_items.size() - 0.5);
+    }
 
     update();
 }

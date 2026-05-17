@@ -112,15 +112,9 @@ void TutorialOverlay::paintEvent(QPaintEvent *)
     painter.drawText(m_btnRect, Qt::AlignCenter, m_btnText);
 }
 
-void TutorialOverlay::mousePressEvent(QMouseEvent *event)
+void TutorialOverlay::mousePressEvent(QMouseEvent *)
 {
-    if (m_btnRect.contains(event->pos())) {
-        emit nextClicked();
-    }
-    // Also allow clicking anywhere to advance
-    if (!m_btnRect.contains(event->pos())) {
-        emit nextClicked();
-    }
+    emit nextClicked();
 }
 
 

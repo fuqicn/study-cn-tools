@@ -4,20 +4,32 @@
 #include <QTimer>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QStandardPaths>
 #include "mainwindow.h"
 #include "firstrundialog.h"
 #include "tutorialdialog.h"
 
-// 检测系统是否为深色模式
-static bool systemDarkMode()
+static QString settingsFilePath()
 {
-#ifdef Q_OS_WIN
-    QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                  QSettings::NativeFormat);
-    return reg.value("AppsUseLightTheme", 1).toInt() == 0;
-#else
-    return false;
-#endif
+    QString appDir = QApplication::applicationDirPath();
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
+    QString progDataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/DefenseEdu";
+
+    QString scopeFile = appDir + "/.install-scope";
+    if (QFile::exists(scopeFile)) {
+        QFile f(scopeFile);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString scope = QString::fromUtf8(f.readAll()).trimmed();
+            f.close();
+            if (scope == "all") {
+                QDir().mkpath(progDataPath);
+                return progDataPath + "/settings.ini";
+            }
+        }
+    }
+
+    QDir().mkpath(appDataPath);
+    return appDataPath + "/settings.ini";
 }
 
 int main(int argc, char *argv[])
@@ -26,9 +38,10 @@ int main(int argc, char *argv[])
 
     app.setApplicationName("国防安全科普教育软件");
     app.setOrganizationName("DefenseEdu");
+    app.setOrganizationDomain("defense-edu.local");
 
     // Single-instance check using QLocalServer — wake up existing window
-    QString serverName = "defense-edu-single-instance";
+    QString serverName = "defense-edu-single-instance-" + QString::fromLocal8Bit(qgetenv("USERNAME"));
 
     QLocalSocket socket;
     socket.connectToServer(serverName);
@@ -44,7 +57,7 @@ int main(int argc, char *argv[])
     server.listen(serverName);
 
     // 检查是否为首次运行
-    QString settingsPath = QApplication::applicationDirPath() + "/settings.ini";
+    QString settingsPath = settingsFilePath();
     QSettings settings(settingsPath, QSettings::IniFormat);
     bool firstRun = !settings.value("firstRunCompleted", false).toBool();
 

@@ -122,16 +122,22 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
         json["stream"] = true;
         if (!systemPrompt.isEmpty()) json["system"] = systemPrompt;
 
+        m_buffer.clear();
         if (m_currentReply) {
             m_currentReply->abort();
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
         }
-        m_buffer.clear();
 
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
         connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
         connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
+        QTimer::singleShot(60000, m_currentReply, [this]() {
+            if (m_currentReply && m_currentReply->isRunning()) {
+                m_currentReply->abort();
+                emit errorOccurred("请求超时（60秒）");
+            }
+        });
 
     } else if (provider == "deepseek") {
         // DeepSeek 使用 OpenAI 兼容 API
@@ -160,16 +166,22 @@ void AiServiceManager::sendMessage(const QString &message, const QString &model,
 
         json["messages"] = messages;
 
+        m_buffer.clear();
         if (m_currentReply) {
             m_currentReply->abort();
             m_currentReply->deleteLater();
             m_currentReply = nullptr;
         }
-        m_buffer.clear();
 
         m_currentReply = m_networkManager->post(request, QJsonDocument(json).toJson());
         connect(m_currentReply, &QNetworkReply::finished,    this, &AiServiceManager::onChatReplyFinished);
         connect(m_currentReply, &QNetworkReply::readyRead,   this, &AiServiceManager::onReadyRead);
+        QTimer::singleShot(60000, m_currentReply, [this]() {
+            if (m_currentReply && m_currentReply->isRunning()) {
+                m_currentReply->abort();
+                emit errorOccurred("请求超时（60秒）");
+            }
+        });
     }
 }
 
@@ -178,6 +190,11 @@ void AiServiceManager::onReadyRead()
 {
     if (!m_currentReply) return;
     m_buffer += m_currentReply->readAll();
+    if (m_buffer.size() > 1024 * 1024) {
+        m_currentReply->abort();
+        emit errorOccurred("响应数据过大，已中断");
+        return;
+    }
     processBuffer(false);
 }
 

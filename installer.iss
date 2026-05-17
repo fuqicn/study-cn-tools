@@ -2,7 +2,7 @@
 ; 制作者：傅琪
 
 #define AppName "国防安全科普教育软件"
-#define AppVersion "3.2.1"
+#define AppVersion "3.2.2"
 #define AppPublisher "傅琪"
 #define AppExeName "defense-edu.exe"
 #define AppIcon "resources\icon.ico"
@@ -16,6 +16,7 @@ AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
 DefaultDirName={autopf}\{#AppName}
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
 OutputDir=..\installer_output
@@ -35,7 +36,7 @@ VersionInfoProductName={#AppName}
 SetupAppTitle=安装 - {#AppName}
 SetupWindowTitle=安装 - {#AppName}
 WelcomeLabel1=欢迎使用 {#AppName} 安装向导
-WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.1 改进：单实例自动唤醒窗口、激光防御控制按钮、AI 输出 Markdown 渲染。
+WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.2 改进：修复多项 Bug、设置存储位置变更、安装范围选择。
 SelectDirLabel3=安装程序将把 {#AppName} 安装到以下文件夹。
 SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。%n%n选择安装范围：
 SelectProgramGroupLabel2=安装程序将在以下开始菜单文件夹中创建快捷方式。
@@ -114,9 +115,42 @@ Filename: "{app}\{#AppExeName}"; Description: "{cm:RunAfterInstall}"; Flags: now
 [Code]
 var
   FeaturePage: TOutputMsgMemoWizardPage;
+  InstallScopePage: TInputOptionWizardPage;
+  IsAllUsers: Boolean;
+
+function IsAdmin: Boolean;
+begin
+  Result := IsAdminLoggedOn or IsPowerUserLoggedOn;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  // 如果不是管理员，跳过安装范围选择（仅当前用户）
+  if (PageID = InstallScopePage.ID) and not IsAdmin then
+  begin
+    IsAllUsers := False;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
 
 procedure InitializeWizard;
 begin
+  // 安装范围选择页（在欢迎页之后、许可协议页之前）
+  InstallScopePage := CreateInputOptionPage(
+    wpWelcome,
+    '选择安装范围',
+    '请选择安装范围',
+    '选择「所有用户」需要管理员权限。',
+    False,  // not exclusive (radio buttons are auto-exclusive)
+    False   // not list boxes
+  );
+  InstallScopePage.Add('安装给所有用户（需要管理员权限）');
+  InstallScopePage.Add('仅安装给当前用户');
+  InstallScopePage.Values[0] := IsAdmin;
+  InstallScopePage.Values[1] := not IsAdmin;
+
   // 在「准备安装」页面之前，插入功能介绍页面
   FeaturePage := CreateOutputMsgMemoPage(
     wpReady,
@@ -132,7 +166,7 @@ begin
     '{\colortbl;\red196\green30\blue58;\red255\green215\blue0;\red0\green102\blue204;}' +
     '\viewkind4\uc1\pard\sl276\slmult1\f0\fs22' +
 
-    '\pard\qc\b\fs28\cf1 国防安全科普教育软件 v3.2.1\cf0\b0\fs22\par' +
+    '\pard\qc\b\fs28\cf1 国防安全科普教育软件 v3.2.2\cf0\b0\fs22\par' +
     '\pard\qc\fs18\cf2 制作者：傅琪\par' +
     '\pard\qc\fs16\cf0 声明：Qt 不用于任何公司和商业用途\par' +
     '\pard\sl360\slmult1\fs20\par' +
@@ -179,12 +213,38 @@ begin
     '}';
 end;
 
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ScopeFile: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // 写入安装范围标记文件
+    IsAllUsers := InstallScopePage.Values[0];
+    ScopeFile := ExpandConstant('{app}\.install-scope');
+    if IsAllUsers then
+      SaveStringToFile(ScopeFile, 'all', False)
+    else
+      SaveStringToFile(ScopeFile, 'user', False);
+  end;
+end;
+
 // 卸载时清理设置文件
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppDataPath, ProgDataPath, SettingsFile: String;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    if FileExists(ExpandConstant('{app}\settings.ini')) then
-      DeleteFile(ExpandConstant('{app}\settings.ini'));
+    // 清理当前用户的设置文件
+    AppDataPath := ExpandConstant('{localappdata}\DefenseEdu');
+    SettingsFile := AppDataPath + '\settings.ini';
+    if FileExists(SettingsFile) then
+      DeleteFile(SettingsFile);
+    // 也尝试清理 ProgramData 下的设置文件
+    ProgDataPath := ExpandConstant('{commonappdata}\DefenseEdu');
+    SettingsFile := ProgDataPath + '\settings.ini';
+    if FileExists(SettingsFile) then
+      DeleteFile(SettingsFile);
   end;
 end;

@@ -118,9 +118,6 @@ private:
     bool m_acrylicMode;   // Win11 acrylic-style visual effects
     bool m_sidebarAutoCollapse; // auto-collapse sidebar after navigation
 
-    /* animations */
-    QList<QPropertyAnimation*> m_cardAnims;
-
     /* top bar */
     QPushButton *m_menuBtn;
     QLabel      *m_topTitle;

@@ -25,6 +25,7 @@ GameWidget::GameWidget(QWidget *parent)
     setMinimumSize(600, 400);
     m_timer.setInterval(TICK_MS);
     connect(&m_timer, &QTimer::timeout, this, &GameWidget::tick);
+    m_elapsed.start();
     m_timer.start();
 }
 
@@ -123,13 +124,15 @@ void GameWidget::spawnDrone()
     QPointF perp(-dir.y(), dir.x());
     d.vel = (dir + perp * wobble * 0.3) * speed;
     d.angle = std::atan2(d.vel.y(), d.vel.x());
-    d.hp = 1;
+    d.hp = 1 + m_wave / 5;
     m_drones.append(d);
 }
 
 void GameWidget::tick()
 {
-    m_dt = TICK_MS / 1000.0;
+    m_dt = m_elapsed.elapsed() / 1000.0;
+    m_elapsed.start();
+    m_dt = qBound(0.001, m_dt, 0.1);
     m_turretPos = QPointF(width() / 2.0, height() / 2.0);
 
     if (m_gameOver || m_paused) {
@@ -175,13 +178,16 @@ void GameWidget::tick()
         QList<int> toRemove;
         for (int i = 0; i < m_drones.size(); ++i) {
             if (lineCircleIntersect(m_turretPos, laserEnd, m_drones[i].pos, 14.0)) {
-                toRemove.append(i);
+                m_drones[i].hp -= 1;
+                if (m_drones[i].hp <= 0) {
+                    toRemove.append(i);
+                    m_score += 10;
+                }
             }
         }
         // remove in reverse order
         for (int i = toRemove.size() - 1; i >= 0; --i) {
             m_drones.removeAt(toRemove[i]);
-            m_score += 10;
         }
     }
 

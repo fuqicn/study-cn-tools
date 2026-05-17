@@ -52,7 +52,7 @@ echo.
 cd ..
 
 :: 部署到输出目录
-set OUTPUT_DIR=..\国防科普教育软件
+set OUTPUT_DIR=..\appfolder
 
 echo 正在部署到 %OUTPUT_DIR%...
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"

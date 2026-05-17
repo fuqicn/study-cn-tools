@@ -9,7 +9,6 @@ SOURCES += \
     src/main.cpp \
     src/mainwindow.cpp \
     src/aiservicemanager.cpp \
-    src/ollamamanager.cpp \
     src/settingsmanager.cpp \
     src/timelinewidget.cpp \
     src/gamewidget.cpp \
@@ -19,7 +18,6 @@ SOURCES += \
 HEADERS += \
     src/mainwindow.h \
     src/aiservicemanager.h \
-    src/ollamamanager.h \
     src/settingsmanager.h \
     src/timelinewidget.h \
     src/gamewidget.h \

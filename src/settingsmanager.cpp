@@ -1,11 +1,38 @@
 #include "settingsmanager.h"
 #include <QApplication>
 #include <QDir>
+#include <QFile>
+#include <QStandardPaths>
+#include <QStringList>
+
+static QString settingsFilePath()
+{
+    // 检测安装作用域: 检查程序是否在 Program Files 中
+    QString appDir = QApplication::applicationDirPath();
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/DefenseEdu";
+    QString progDataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/DefenseEdu";
+
+    // 在 appfolder 目录放一个 .install-scope 标记文件
+    QString scopeFile = appDir + "/.install-scope";
+    if (QFile::exists(scopeFile)) {
+        QFile f(scopeFile);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString scope = QString::fromUtf8(f.readAll()).trimmed();
+            f.close();
+            if (scope == "all") {
+                QDir().mkpath(progDataPath);
+                return progDataPath + "/settings.ini";
+            }
+        }
+    }
+
+    QDir().mkpath(appDataPath);
+    return appDataPath + "/settings.ini";
+}
 
 SettingsManager::SettingsManager(QObject *parent)
     : QObject(parent)
-    , m_settings(new QSettings(QApplication::applicationDirPath() + "/settings.ini",
-                               QSettings::IniFormat, this))
+    , m_settings(new QSettings(settingsFilePath(), QSettings::IniFormat, this))
 {
 }
 

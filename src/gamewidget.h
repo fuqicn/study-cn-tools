@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QList>
 #include <QPointF>
 
@@ -60,6 +61,7 @@ private:
 
     // timer
     QTimer m_timer;
+    QElapsedTimer m_elapsed;
     static constexpr int TICK_MS = 16;  // ~60fps
     double m_dt;
 

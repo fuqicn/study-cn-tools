@@ -288,6 +288,9 @@ void MainWindow::applyTheme()
 
         /* ---- 对话框 ---- */
         "QDialog { background:%1; color:%2; }"
+
+        /* ---- 游戏栏 ---- */
+        "QFrame#gameBar { background:%3; border-top:1px solid %5; }"
     ).arg(t.bg,      // %1
           t.text,     // %2
           t.surface,  // %3
@@ -470,7 +473,7 @@ void MainWindow::setupUi()
     }
     drawerLay->addStretch();
 
-    QLabel *ver = new QLabel("v3.2.1");
+    QLabel *ver = new QLabel("v3.2.2");
     ver->setObjectName("versionLabel");
     ver->setAlignment(Qt::AlignCenter);
     ver->setContentsMargins(0,0,0,16);
@@ -1169,7 +1172,7 @@ void MainWindow::finishQuiz()
     m_quizFeedback->hide();
     m_quizNextBtn->setText("再来一轮");
     m_quizNextBtn->show();
-    disconnect(m_quizNextBtn, nullptr, this, nullptr);
+    m_quizNextBtn->disconnect();
     connect(m_quizNextBtn, &QPushButton::clicked, this, &MainWindow::generateQuiz);
 }
 
@@ -1189,7 +1192,7 @@ QWidget* MainWindow::createGamePage()
 
     QFrame *gameBar = new QFrame();
     gameBar->setFixedHeight(40);
-    gameBar->setStyleSheet("QFrame { background: #1a1a1a; border-top:1px solid #333; }");
+    gameBar->setObjectName("gameBar");
     QHBoxLayout *gbLay = new QHBoxLayout(gameBar);
     gbLay->setContentsMargins(12,0,12,0);
 
@@ -1572,9 +1575,14 @@ void MainWindow::sendChatMessage()
     if (msg.isEmpty() || m_isReceiving) return;
 
     // 保存当前显示内容作为历史
-    m_chatPrefix = m_chatDisplay->toHtml();
-    // 如果是初始欢迎页面则清空
-    if (m_chatPrefix.contains("欢迎来到国防知识")) m_chatPrefix.clear();
+    QString currentHtml = m_chatDisplay->toHtml();
+    // 如果是初始欢迎页面则清空（严格匹配欢迎页HTML特征）
+    static const QString welcomeMarker = "欢迎来到国防知识 AI 助手";
+    if (currentHtml.contains(welcomeMarker) && m_currentResponse.isEmpty() && !m_isReceiving) {
+        m_chatPrefix.clear();
+    } else {
+        m_chatPrefix = currentHtml;
+    }
 
     // 添加用户消息到历史
     m_chatPrefix += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
@@ -1601,12 +1609,9 @@ void MainWindow::sendChatMessage()
     disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onQuizResponseChunk);
     disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onQuizResponseReceived);
     disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onQuizError);
-    disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk);
-    disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived);
-    disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred);
-    connect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk);
-    connect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived);
-    connect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred);
+    connect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk, Qt::UniqueConnection);
+    connect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived, Qt::UniqueConnection);
+    connect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred, Qt::UniqueConnection);
 }
 
 QString MainWindow::escapeHtml(const QString &t)
@@ -1676,8 +1681,11 @@ void MainWindow::onModelsFetched(const QStringList &models)
 void MainWindow::onErrorOccurred(const QString &error)
 {
     m_isReceiving = false;
-    m_chatDisplay->setHtml(m_chatPrefix +
-        QString("<p style='margin:6px 0;color:#ff4444;'><b>错误:</b> %1</p>").arg(escapeHtml(error)));
+    // 仅在聊天模式下更新聊天显示，答题模式下由 onQuizError 处理
+    if (!m_quizReceiving) {
+        m_chatDisplay->setHtml(m_chatPrefix +
+            QString("<p style='margin:6px 0;color:#ff4444;'><b>错误:</b> %1</p>").arg(escapeHtml(error)));
+    }
 }
 
 /* ================================================================== */
@@ -2044,7 +2052,7 @@ void MainWindow::finishKQuiz()
     m_kQuizFeedback->hide();
     m_kQuizNextBtn->setText("再来一轮");
     m_kQuizNextBtn->show();
-    disconnect(m_kQuizNextBtn, nullptr, this, nullptr);
+    m_kQuizNextBtn->disconnect();
     connect(m_kQuizNextBtn, &QPushButton::clicked, this, &MainWindow::startKnowledgeQuiz);
 }
 
