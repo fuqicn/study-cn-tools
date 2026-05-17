@@ -15,8 +15,9 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
 DefaultDirName={autopf}\{#AppName}
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline
+UsedUserAreasWarning=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
 OutputDir=..\installer_output
@@ -142,47 +143,12 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 Filename: "{app}\{#AppExeName}"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent; Tasks: runafterinstall
 
 [Code]
-const
-  BCM_SETSHIELD = $160C;
-
 var
   FeaturePage: TOutputMsgMemoWizardPage;
   InstallScopePage: TInputOptionWizardPage;
-  RestartedForAdmin: Boolean;
-
-function SendMessage(hWnd: Integer; Msg: Integer; wParam: Integer; lParam: Integer): Integer;
-  external 'SendMessageW@user32.dll stdcall';
-
-function CmdLineParamExists(const Param: String): Boolean;
-var
-  I: Integer;
-begin
-  Result := False;
-  for I := 1 to ParamCount do
-  begin
-    if CompareText(ParamStr(I), Param) = 0 then
-    begin
-      Result := True;
-      Exit;
-    end;
-  end;
-end;
-
-procedure UpdateNextButtonShield;
-begin
-  // 在作用域页面且选择「所有用户」但未提权时显示盾牌
-  if (WizardForm.CurPageID = InstallScopePage.ID) and
-     InstallScopePage.Values[0] and
-     not IsAdminInstallMode then
-    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 1)
-  else
-    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 0);
-end;
 
 procedure InitializeWizard;
 begin
-  RestartedForAdmin := CmdLineParamExists('/ALLUSERS') and IsAdminInstallMode;
-
   // 安装范围选择页（在欢迎页之后、许可协议页之前）
   InstallScopePage := CreateInputOptionPage(
     wpWelcome,
@@ -194,16 +160,8 @@ begin
   );
   InstallScopePage.Add('安装给所有用户（需要管理员权限）');
   InstallScopePage.Add('仅安装给当前用户');
-  if IsAdminInstallMode then
-  begin
-    InstallScopePage.Values[0] := True;
-    InstallScopePage.Values[1] := False;
-  end
-  else
-  begin
-    InstallScopePage.Values[0] := False;
-    InstallScopePage.Values[1] := True;
-  end;
+  InstallScopePage.Values[0] := IsAdminInstallMode;
+  InstallScopePage.Values[1] := not IsAdminInstallMode;
 
   // 在「准备安装」页面之前，插入功能介绍页面
   FeaturePage := CreateOutputMsgMemoPage(
@@ -265,40 +223,6 @@ begin
 
     '\pard\qc\fs16\cf0 点击「下一步」继续安装\par' +
     '}';
-end;
-
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  // 已提权重启时跳过作用域页（已在命令行选定所有用户）
-  if (PageID = InstallScopePage.ID) and RestartedForAdmin then
-    Result := True
-  else
-    Result := False;
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result := True;
-  // 在作用域页选择「所有用户」但未提权 → 重启提权
-  if (CurPageID = InstallScopePage.ID) and
-     InstallScopePage.Values[0] and
-     not IsAdminInstallMode then
-  begin
-    if ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
-    begin
-      Result := False;
-      WizardForm.Close;
-    end;
-  end;
-end;
-
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  // 进入作用域页时更新下一按钮的盾牌图标
-  if CurPageID = InstallScopePage.ID then
-    UpdateNextButtonShield;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
