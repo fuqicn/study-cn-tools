@@ -17,7 +17,6 @@
 #include <QSettings>
 #include <QFile>
 #include <QTextStream>
-#include <QDateTime>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QGraphicsOpacityEffect>
@@ -2216,18 +2215,6 @@ void MainWindow::saveSettings()
 
     m_settingsManager->setSystemPrompt(m_promptInput->toPlainText());
     m_settingsManager->sync();
-
-    // write log
-    QString logPath = QCoreApplication::applicationDirPath() + "/settings.log";
-    QFile logFile(logPath);
-    if (logFile.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&logFile);
-        out << "[" << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "] "
-            << "Settings saved (theme=" << m_themeMode
-            << ", provider=" << (providerIdx == 0 ? "ollama" : "deepseek")
-            << ")\n";
-        logFile.close();
-    }
 }
 
 void MainWindow::debouncedSaveSettings()

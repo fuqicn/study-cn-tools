@@ -1,4 +1,4 @@
-# 国防安全科普教育软件 v3.2.0
+# 国防安全科普教育软件 v3.2.3
 
 一款国防安全科普软件，使用 C++ 和 Qt 6 开发，拥有精美界面与交互动画。
 
@@ -52,7 +52,8 @@
 - 亚克力效果开关（Win11 毛玻璃背景）
 - 侧边栏自动收回选项
 - AI 服务商选择（Ollama / DeepSeek）
-- 设置持久化保存到本地文件
+- 设置持久化保存到程序目录 `settings.ini`
+- 查看更新日志
 
 ---
 
@@ -62,7 +63,7 @@
 - MinGW-w64 编译器
 - Windows 10/11
 
-## 编译步骤
+## 编译 & 部署
 
 ```batch
 cd code
@@ -71,12 +72,22 @@ qmake ..\defense-edu.pro -spec win32-g++ "CONFIG+=release"
 mingw32-make -f Makefile.Release
 ```
 
-或直接双击运行项目根目录的 `build.bat` 一键编译部署。
+或直接双击运行 `build.bat` 一键编译 + 部署到 `../appfolder/`。
 
 部署依赖：
 ```batch
-windeployqt --release release\defense-edu.exe
+windeployqt --release --no-translations ..\..\appfolder\defense-edu.exe
 ```
+
+## 制作安装包
+
+使用 Inno Setup 6 编译 `installer.iss`：
+
+```batch
+ISCC.exe installer.iss
+```
+
+安装包输出到 `../installer_output/`。安装程序仅当前用户安装（`PrivilegesRequired=lowest`），默认路径 `%LOCALAPPDATA%\Programs\国防安全科普教育软件`。
 
 ---
 
@@ -108,9 +119,11 @@ defense-edu/
 │   │   ├── app.rc           # Windows 版本信息
 │   │   ├── changelog.md     # 更新日志
 │   │   └── icon.ico         # 程序图标
-│   ├── build/               # 编译输出目录
+│   ├── build/               # 编译输出目录（生成的）
+│   ├── installer.iss        # Inno Setup 安装脚本
 │   └── defense-edu.pro      # Qt 项目文件
 ├── appfolder/                # 部署目录（含 Qt 运行时）
+├── installer_output/         # 安装包输出目录
 ├── build.bat                 # 一键编译部署脚本
 └── README.md                 # 本文件
 ```
