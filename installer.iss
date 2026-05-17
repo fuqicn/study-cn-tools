@@ -14,7 +14,7 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
-DefaultDirName={code:GetDefaultDirName}
+DefaultDirName={autopf}\{#AppName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 UsedUserAreasWarning=no
@@ -190,15 +190,6 @@ begin
     Result := InstallScopePage.Values[0];
 end;
 
-// 动态安装目录：所有用户 → Program Files，当前用户 → 用户 Programs
-function GetDefaultDirName(Param: String): String;
-begin
-  if IsAllUsersMode then
-    Result := ExpandConstant('{autopf}\{#AppName}')
-  else
-    Result := ExpandConstant('{userpf}\{#AppName}');
-end;
-
 // 设置存储目录
 function GetSettingsDir(Param: String): String;
 begin
@@ -336,6 +327,23 @@ begin
         else
           Result := False;  // 取消安装
       end;
+    end;
+  end;
+end;
+
+// 页面切换时动态调整安装目录
+procedure CurPageChanged(CurPageID: Integer);
+var
+  NewDir: String;
+begin
+  if CurPageID = wpSelectDir then
+  begin
+    if not IsAllUsersMode then
+    begin
+      NewDir := ExpandConstant('{userpf}\{#AppName}');
+      // 仅当用户未手动修改过目录时才自动切换
+      if WizardForm.DirEdit.Text = ExpandConstant('{autopf}\{#AppName}') then
+        WizardForm.DirEdit.Text := NewDir;
     end;
   end;
 end;
