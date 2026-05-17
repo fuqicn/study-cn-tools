@@ -16,6 +16,8 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QFile>
+#include <QTextStream>
+#include <QDateTime>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QGraphicsOpacityEffect>
@@ -1271,17 +1273,17 @@ QWidget* MainWindow::createSettingsPage()
         m_themeMode = "system";
         m_darkMode = systemDarkMode();
         m_autoBtn->setChecked(true); m_darkBtn->setChecked(false); m_lightBtn->setChecked(false);
-        applyTheme();
+        applyTheme(); saveSettings();
     });
     connect(m_darkBtn, &QPushButton::clicked, this, [this](){
         m_themeMode="dark"; m_darkMode=true;
         m_autoBtn->setChecked(false); m_darkBtn->setChecked(true); m_lightBtn->setChecked(false);
-        applyTheme();
+        applyTheme(); saveSettings();
     });
     connect(m_lightBtn, &QPushButton::clicked, this, [this](){
         m_themeMode="light"; m_darkMode=false;
         m_autoBtn->setChecked(false); m_darkBtn->setChecked(false); m_lightBtn->setChecked(true);
-        applyTheme();
+        applyTheme(); saveSettings();
     });
     tl->addWidget(m_autoBtn); tl->addWidget(m_darkBtn); tl->addWidget(m_lightBtn); tl->addStretch();
     al->addLayout(tl);
@@ -1295,7 +1297,7 @@ QWidget* MainWindow::createSettingsPage()
     acrylicCheck->setChecked(m_acrylicMode);
     connect(acrylicCheck, &QCheckBox::toggled, this, [this](bool checked){
         m_acrylicMode = checked;
-        applyTheme();
+        applyTheme(); saveSettings();
     });
     acrylicLay->addWidget(acrylicCheck);
     acrylicLay->addStretch();
@@ -1310,6 +1312,7 @@ QWidget* MainWindow::createSettingsPage()
     sidebarAutoCheck->setChecked(m_sidebarAutoCollapse);
     connect(sidebarAutoCheck, &QCheckBox::toggled, this, [this](bool checked){
         m_sidebarAutoCollapse = checked;
+        saveSettings();
     });
     sidebarLay->addWidget(sidebarAutoCheck);
     sidebarLay->addStretch();
@@ -1353,10 +1356,12 @@ QWidget* MainWindow::createSettingsPage()
     ollamaLayout->setSpacing(8);
     ollamaLayout->addWidget(new QLabel("服务地址:"));
     m_urlInput->setText("http://localhost:11434");
+    connect(m_urlInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
     ollamaLayout->addWidget(m_urlInput);
     ollamaLayout->addWidget(new QLabel("模型名称:"));
     m_modelSelectCombo->setEditable(false);
     m_modelSelectCombo->addItem("自定义");
+    connect(m_modelSelectCombo, &QComboBox::currentTextChanged, this, &MainWindow::saveSettings);
     ollamaLayout->addWidget(m_modelSelectCombo);
     QLabel *modelHint = new QLabel("提示: 选择「自定义」时可手动输入模型名称");
     modelHint->setObjectName("dimLabel");
@@ -1377,11 +1382,13 @@ QWidget* MainWindow::createSettingsPage()
     deepseekLayout->addWidget(new QLabel("API 地址:"));
     m_deepseekApiUrlInput = new QLineEdit();
     m_deepseekApiUrlInput->setText("https://api.deepseek.com/v1");
+    connect(m_deepseekApiUrlInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
     deepseekLayout->addWidget(m_deepseekApiUrlInput);
     deepseekLayout->addWidget(new QLabel("API 密钥:"));
     m_deepseekApiKeyInput = new QLineEdit();
     m_deepseekApiKeyInput->setEchoMode(QLineEdit::Password);
     m_deepseekApiKeyInput->setPlaceholderText("请输入DeepSeek API密钥");
+    connect(m_deepseekApiKeyInput, &QLineEdit::textChanged, this, &MainWindow::saveSettings);
     deepseekLayout->addWidget(m_deepseekApiKeyInput);
     deepseekLayout->addWidget(new QLabel("模型名称:"));
     QComboBox *deepseekModelCombo = new QComboBox();
@@ -1390,6 +1397,7 @@ QWidget* MainWindow::createSettingsPage()
     deepseekModelCombo->addItem("deepseek-chat");
     deepseekModelCombo->addItem("deepseek-coder");
     deepseekModelCombo->addItem("自定义");
+    connect(deepseekModelCombo, &QComboBox::currentTextChanged, this, &MainWindow::saveSettings);
     deepseekLayout->addWidget(deepseekModelCombo);
     QLabel *deepseekHint = new QLabel("提示: 请在DeepSeek官网获取API密钥: https://platform.deepseek.com");
     deepseekHint->setObjectName("dimLabel");
@@ -1404,21 +1412,16 @@ QWidget* MainWindow::createSettingsPage()
     aiLayout->addWidget(new QLabel("系统提示词:"));
     m_promptInput->setObjectName("promptInput");
     m_promptInput->setMaximumHeight(70);
+    connect(m_promptInput, &QTextEdit::textChanged, this, &MainWindow::saveSettings);
     aiLayout->addWidget(m_promptInput);
 
     lay->addWidget(aiFrame);
 
-    QHBoxLayout *bl = new QHBoxLayout(); bl->setSpacing(10);
-    QPushButton *saveBtn = new QPushButton("保存设置");
-    saveBtn->setObjectName("primaryBtn");
-    saveBtn->setFixedHeight(36);
-    connect(saveBtn, &QPushButton::clicked, this, &MainWindow::saveSettings);
-    QPushButton *resetBtn = new QPushButton("恢复默认");
-    resetBtn->setObjectName("resetBtn");
+    QPushButton *resetBtn = new QPushButton("恢复默认设置");
+    resetBtn->setObjectName("primaryBtn");
     resetBtn->setFixedHeight(36);
     connect(resetBtn, &QPushButton::clicked, this, &MainWindow::resetSettings);
-    bl->addWidget(saveBtn); bl->addWidget(resetBtn);
-    lay->addLayout(bl);
+    lay->addWidget(resetBtn, 0, Qt::AlignCenter);
 
     QPushButton *changelogBtn = new QPushButton("查看更新日志");
     changelogBtn->setObjectName("resetBtn");
@@ -2065,20 +2068,16 @@ void MainWindow::saveSettings()
     m_settingsManager->setAcrylicMode(m_acrylicMode);
     m_settingsManager->setSidebarAutoCollapse(m_sidebarAutoCollapse);
 
-    // 保存AI服务商设置
     int providerIdx = m_aiProviderCombo->currentIndex();
     m_settingsManager->setAiProvider(providerIdx == 0 ? "ollama" : "deepseek");
     m_settingsManager->setOllamaUrl(m_urlInput->text());
 
-    // 保存 Ollama 模型名称
     QString ollamaModelText = m_modelSelectCombo->currentText();
-    // 如果选的是"自定义"，使用 editable text（虽然已设置不可编辑，但保留逻辑）
     if (ollamaModelText == "自定义") {
         ollamaModelText = m_modelSelectCombo->currentText();
     }
     m_settingsManager->setOllamaModel(ollamaModelText);
 
-    // 保存 DeepSeek 模型名称
     QComboBox *deepseekModelCombo = m_aiSettingsStack->widget(1)->findChild<QComboBox*>("deepseekModelCombo");
     QString deepseekModelText = deepseekModelCombo ? deepseekModelCombo->currentText() : "deepseek-chat";
     m_settingsManager->setDeepseekModel(deepseekModelText);
@@ -2088,7 +2087,18 @@ void MainWindow::saveSettings()
 
     m_settingsManager->setSystemPrompt(m_promptInput->toPlainText());
     m_settingsManager->sync();
-    QMessageBox::information(this, QString::fromUtf8("保存成功"), QString::fromUtf8("设置已保存！"));
+
+    // write log
+    QString logPath = QCoreApplication::applicationDirPath() + "/settings.log";
+    QFile logFile(logPath);
+    if (logFile.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        out << "[" << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "] "
+            << "Settings saved (theme=" << m_themeMode
+            << ", provider=" << (providerIdx == 0 ? "ollama" : "deepseek")
+            << ")\n";
+        logFile.close();
+    }
 }
 
 void MainWindow::loadSettingsToUi()
