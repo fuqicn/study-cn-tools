@@ -14,7 +14,7 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultGroupName={#AppName}
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={code:GetDefaultDirName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 UsedUserAreasWarning=no
@@ -124,8 +124,6 @@ UninstallAppFullTitle=卸载 {#AppName}
 UninstallAppRunningError=卸载程序检测到 {#AppName} 正在运行。%n%n请关闭所有实例，然后点击「确定」继续，或点击「取消」退出。
 ButtonNewFolder=新建文件夹(&M)
 
-
-
 [CustomMessages]
 DesktopIcon=创建桌面快捷方式
 RunAfterInstall=安装完成后运行 {#AppName}
@@ -175,9 +173,55 @@ var
   FeaturePage: TOutputMsgMemoWizardPage;
   InstallScopePage: TInputOptionWizardPage;
 
+const
+  BCM_SETSHIELD = $0000160C;
+
+function SendMessage(hWnd: Integer; Msg: Integer; wParam: Integer; lParam: Integer): Integer;
+  external 'SendMessageW@user32.dll stdcall';
+
 function IsAdminUser: Boolean;
 begin
   Result := IsAdmin;
+end;
+
+// 判断当前是否为"所有用户"安装模式
+function IsAllUsersMode: Boolean;
+begin
+  // 优先级：命令行参数 > 安装范围页的选择
+  if ExpandConstant('{param:ALLUSERS|}') <> '' then
+    Result := True
+  else if ExpandConstant('{param:CURRENTUSER|}') <> '' then
+    Result := False
+  else
+    Result := InstallScopePage.Values[0];
+end;
+
+// 动态安装目录：所有用户 → Program Files，当前用户 → 用户 Programs
+function GetDefaultDirName(Param: String): String;
+begin
+  if IsAllUsersMode then
+    Result := ExpandConstant('{autopf}\{#AppName}')
+  else
+    Result := ExpandConstant('{userpf}\{#AppName}');
+end;
+
+// 设置存储目录
+function GetSettingsDir(Param: String): String;
+begin
+  if IsAllUsersMode then
+    Result := ExpandConstant('{commonappdata}\DefenseEdu')
+  else
+    Result := ExpandConstant('{localappdata}\DefenseEdu');
+end;
+
+// 更新"下一步"按钮的盾牌图标
+procedure UpdateShield;
+begin
+  // 选择「所有用户」且当前不是管理员 → 显示盾牌
+  if InstallScopePage.Values[0] and not IsAdminUser then
+    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 1)
+  else
+    SendMessage(WizardForm.NextButton.Handle, BCM_SETSHIELD, 0, 0);
 end;
 
 procedure InitializeWizard;
@@ -265,19 +309,62 @@ begin
     '}';
 end;
 
-function IsAllUsersInstall: Boolean;
+// 如果是通过提权重启的（命令行带 /ALLUSERS 或 /CURRENTUSER），跳过安装范围选择页
+function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := InstallScopePage.Values[0];
-end;
-
-function GetSettingsDir(Param: String): String;
-begin
-  if IsAllUsersInstall then
-    Result := ExpandConstant('{commonappdata}\DefenseEdu')
+  if PageID = InstallScopePage.ID then
+    Result := (ExpandConstant('{param:ALLUSERS|}') <> '') or
+              (ExpandConstant('{param:CURRENTUSER|}') <> '')
   else
-    Result := ExpandConstant('{localappdata}\DefenseEdu');
+    Result := False;
 end;
 
+// 点击"下一步"时的处理
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Result := True;
+
+  if CurPageID = InstallScopePage.ID then
+  begin
+    if InstallScopePage.Values[0] and not IsAdminUser then
+    begin
+      // 用户选择了「所有用户」但当前不是管理员
+      // 以管理员身份重启安装程序，传入 /ALLUSERS 标记
+      if ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS /NORESTART',
+                   '', SW_SHOW, ewNoWait, ErrorCode) then
+      begin
+        Result := False;  // 关闭当前（非管理员）安装程序
+      end
+      else
+      begin
+        // 提权失败（用户取消UAC等）
+        if MsgBox('无法以管理员身份运行安装程序。'#13#13 +
+                  '要继续安装给所有用户，请以管理员身份重新运行本安装程序。'#13#13 +
+                  '是否改为仅安装给当前用户？',
+                  mbError, MB_YESNO) = IDYES then
+        begin
+          InstallScopePage.Values[0] := False;
+          InstallScopePage.Values[1] := True;
+          UpdateShield;
+          Result := True;
+        end
+        else
+          Result := False;  // 取消安装
+      end;
+    end;
+  end;
+end;
+
+// 页面切换时更新盾牌
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = InstallScopePage.ID then
+    UpdateShield;
+end;
+
+// 安装后处理
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ScopeFile, SettingsDir: String;
@@ -286,7 +373,7 @@ begin
   begin
     // 写入安装范围标记文件
     ScopeFile := ExpandConstant('{app}\.install-scope');
-    if IsAllUsersInstall then
+    if IsAllUsersMode then
       SaveStringToFile(ScopeFile, 'all', False)
     else
       SaveStringToFile(ScopeFile, 'user', False);
@@ -301,18 +388,11 @@ end;
 // 卸载时清理设置文件
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  AppDataPath, ProgDataPath, SettingsDir: String;
+  AppDataPath, ProgDataPath: String;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // 读取安装范围标记以确定清理哪个设置目录
-    SettingsDir := GetSettingsDir('');
-    if DirExists(SettingsDir) then
-    begin
-      if DeleteFile(SettingsDir + '\settings.ini') then
-        RemoveDir(SettingsDir);
-    end;
-    // 也尝试清理另一个位置
+    // 尝试清理两个可能的设置目录
     AppDataPath := ExpandConstant('{localappdata}\DefenseEdu');
     if DirExists(AppDataPath) then
     begin
