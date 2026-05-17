@@ -175,9 +175,9 @@ var
   FeaturePage: TOutputMsgMemoWizardPage;
   InstallScopePage: TInputOptionWizardPage;
 
-function IsAdmin: Boolean;
+function IsAdminUser: Boolean;
 begin
-  Result := IsAdminLoggedOn or IsPowerUserLoggedOn;
+  Result := IsAdmin;
 end;
 
 procedure InitializeWizard;
@@ -193,16 +193,14 @@ begin
   );
   InstallScopePage.Add('安装给所有用户（需要管理员权限）');
   InstallScopePage.Add('仅安装给当前用户');
-  InstallScopePage.Values[0] := IsAdmin;
-  InstallScopePage.Values[1] := not IsAdmin;
+  InstallScopePage.Values[0] := IsAdminUser;
+  InstallScopePage.Values[1] := not IsAdminUser;
 
-  // 非管理员不允许全用户安装
-  if not IsAdmin then
+  // 非管理员默认仅当前用户（选择项保持可用，用户自行决定）
+  if not IsAdminUser then
   begin
     InstallScopePage.Values[0] := False;
     InstallScopePage.Values[1] := True;
-    // 禁用第一项并显示提示
-    InstallScopePage.Controls[0].Enabled := False;
   end;
 
   // 在「准备安装」页面之前，插入功能介绍页面
