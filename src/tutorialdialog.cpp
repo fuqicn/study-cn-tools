@@ -172,6 +172,8 @@ void TutorialDialog::createOverlay()
     m_overlay->show();
     m_overlay->raise();
 
+    m_mainWindow->installEventFilter(this);
+
     connect(m_overlay, &TutorialOverlay::nextClicked, this, &TutorialDialog::goToNextStep);
 }
 
@@ -182,6 +184,17 @@ void TutorialDialog::removeOverlay()
         m_overlay->deleteLater();
         m_overlay = nullptr;
     }
+    m_mainWindow->removeEventFilter(this);
+}
+
+bool TutorialDialog::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_mainWindow && event->type() == QEvent::Resize) {
+        if (m_overlay) {
+            m_overlay->setGeometry(m_mainWindow->rect());
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 void TutorialDialog::showCurrentStep()

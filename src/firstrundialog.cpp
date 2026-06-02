@@ -18,6 +18,9 @@ static bool systemDarkMode()
 #ifdef Q_OS_WIN
     QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                   QSettings::NativeFormat);
+    // Windows 11 23H2+: prefer SystemUsesLightTheme
+    int sysVal = reg.value("SystemUsesLightTheme", -1).toInt();
+    if (sysVal >= 0) return sysVal == 0;
     return reg.value("AppsUseLightTheme", 1).toInt() == 0;
 #else
     return false;
@@ -147,7 +150,7 @@ QWidget* FirstRunDialog::createWelcomePage()
     title->setAlignment(Qt::AlignCenter);
     fl->addWidget(title);
 
-    QLabel *sub = new QLabel("v3.2.2 \u2022 制作者：傅琪");
+    QLabel *sub = new QLabel("v3.2.4 \u2022 制作者：傅琪");
     sub->setObjectName("welcomeSub");
     sub->setAlignment(Qt::AlignCenter);
     fl->addWidget(sub);
@@ -188,7 +191,7 @@ QWidget* FirstRunDialog::createLicensePage()
     licenseText->setReadOnly(true);
     licenseText->setHtml(
         "<h3 style='color:#c41e3a;'>国防安全科普教育软件 使用许可协议</h3>"
-        "<p><b>版本：3.2.2</b></p>"
+        "<p><b>版本：3.2.4</b></p>"
         "<hr>"
         "<p><b>一、软件说明</b></p>"
         "<p>本软件是一款国防安全科普教育工具，集成了国防装备展示、发展历程时间轴、"
@@ -260,11 +263,7 @@ QWidget* FirstRunDialog::createThemePage()
     m_themeGroup->addButton(m_themeDarkBtn, 2);
 
     // Default: follow system
-    if (systemDarkMode()) {
-        m_themeDarkBtn->setChecked(true);
-    } else {
-        m_themeLightBtn->setChecked(true);
-    }
+    m_themeSystemBtn->setChecked(true);
 
     btnLay->addWidget(m_themeSystemBtn);
     btnLay->addWidget(m_themeLightBtn);

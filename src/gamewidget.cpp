@@ -4,6 +4,7 @@
 #include <QResizeEvent>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 
 static const double PI = 3.14159265358979323846;
 
@@ -21,6 +22,7 @@ GameWidget::GameWidget(QWidget *parent)
     , m_paused(true)
     , m_dt(TICK_MS / 1000.0)
 {
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
     setMouseTracking(true);
     setMinimumSize(600, 400);
     m_timer.setInterval(TICK_MS);
@@ -37,6 +39,7 @@ void GameWidget::setDarkMode(bool dark)
 
 void GameWidget::startGame()
 {
+    resetGame();
     m_paused = false;
     m_gameOver = false;
     if (!m_timer.isActive())

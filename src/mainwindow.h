@@ -17,6 +17,7 @@
 #include <QList>
 #include <QVariantMap>
 #include <QStackedWidget>
+#include <QCloseEvent>
 #include "aiservicemanager.h"
 #include "settingsmanager.h"
 #include "timelinewidget.h"
@@ -42,6 +43,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void onAiServiceStatusChanged(bool available, const QString &message);

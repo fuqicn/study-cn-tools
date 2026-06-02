@@ -41,10 +41,12 @@ struct WCA_DATA {
 /* 辅助函数：检测系统是否处于深色模式 */
 static bool systemDarkMode()
 {
-    // Windows 10+ 注册表键
 #ifdef Q_OS_WIN
     QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                   QSettings::NativeFormat);
+    // Windows 11 23H2+: prefer SystemUsesLightTheme
+    int sysVal = reg.value("SystemUsesLightTheme", -1).toInt();
+    if (sysVal >= 0) return sysVal == 0;
     return reg.value("AppsUseLightTheme", 1).toInt() == 0;
 #else
     return false;
@@ -494,7 +496,7 @@ void MainWindow::setupUi()
     }
     drawerLay->addStretch();
 
-    QLabel *ver = new QLabel("v3.2.3");
+    QLabel *ver = new QLabel("v3.2.4");
     ver->setObjectName("versionLabel");
     ver->setAlignment(Qt::AlignCenter);
     ver->setContentsMargins(0,0,0,16);
@@ -578,6 +580,14 @@ void MainWindow::showPage(int index)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_saveDebounceTimer->isActive()) {
+        saveSettings();
+    }
+    QMainWindow::closeEvent(event);
 }
 
 /* ================================================================== */
@@ -1247,7 +1257,7 @@ void MainWindow::finishQuiz()
     m_quizFeedback->hide();
     m_quizNextBtn->setText("再来一轮");
     m_quizNextBtn->show();
-    disconnect(m_quizNextBtn, &QPushButton::clicked, this, &MainWindow::nextQuestion);
+    disconnect(m_quizNextBtn, &QPushButton::clicked, this, nullptr);
     connect(m_quizNextBtn, &QPushButton::clicked, this, &MainWindow::generateQuiz);
 }
 
@@ -1622,9 +1632,11 @@ void MainWindow::startupModelDetection()
                     }
                 }
                 dsReply->deleteLater();
+                m_settingsManager->sync();
             });
+        } else {
+            m_settingsManager->sync();
         }
-        m_settingsManager->sync();
     });
 }
 
@@ -1670,7 +1682,7 @@ void MainWindow::sendChatMessage()
         m_chatHistory.removeFirst();
     }
 
-    // 重建完整聊天显示
+    // 重建完整聊天显示（AI 回复存储原始 Markdown，显示时重新渲染）
     QString fullHtml;
     for (const QString &entry : m_chatHistory) {
         int sep = entry.indexOf("||");
@@ -1681,8 +1693,9 @@ void MainWindow::sendChatMessage()
             fullHtml += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
                             .arg(t.accent, escapeHtml(content));
         } else {
+            QString rendered = renderMarkdown(content);
             fullHtml += QString("<div style='margin:6px 0;color:%1;'><b style='color:%2;'>AI:</b> %3</div>")
-                            .arg(t.text, t.accent, content);
+                            .arg(t.text, t.accent, rendered);
         }
     }
     m_chatPrefix = fullHtml;
@@ -1695,16 +1708,7 @@ void MainWindow::sendChatMessage()
     m_currentResponse.clear();
     m_isReceiving = true;
 
-    // 根据AI服务商获取模型名称
-    QString provider = m_settingsManager->aiProvider();
-    QString model = provider == "ollama" ? m_settingsManager->ollamaModel() : m_settingsManager->deepseekModel();
-    if (provider == "ollama") {
-        m_aiServiceManager->sendMessage(msg, model, m_settingsManager->systemPrompt(), "ollama", m_settingsManager->ollamaUrl());
-    } else {
-        m_aiServiceManager->sendMessage(msg, model, m_settingsManager->systemPrompt(), "deepseek", m_settingsManager->deepseekApiUrl(), m_settingsManager->deepseekApiKey());
-    }
-
-    // 确保所有旧信号已断开，然后连接聊天模式信号
+    // 先确保所有旧信号已断开，再连接聊天模式信号，最后发送消息
     disconnect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onQuizResponseChunk);
     disconnect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onQuizResponseReceived);
     disconnect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onQuizError);
@@ -1714,6 +1718,15 @@ void MainWindow::sendChatMessage()
     connect(m_aiServiceManager, &AiServiceManager::responseChunk, this, &MainWindow::onResponseChunk, Qt::UniqueConnection);
     connect(m_aiServiceManager, &AiServiceManager::responseReceived, this, &MainWindow::onResponseReceived, Qt::UniqueConnection);
     connect(m_aiServiceManager, &AiServiceManager::errorOccurred, this, &MainWindow::onErrorOccurred, Qt::UniqueConnection);
+
+    // 根据AI服务商获取模型名称
+    QString provider = m_settingsManager->aiProvider();
+    QString model = provider == "ollama" ? m_settingsManager->ollamaModel() : m_settingsManager->deepseekModel();
+    if (provider == "ollama") {
+        m_aiServiceManager->sendMessage(msg, model, m_settingsManager->systemPrompt(), "ollama", m_settingsManager->ollamaUrl());
+    } else {
+        m_aiServiceManager->sendMessage(msg, model, m_settingsManager->systemPrompt(), "deepseek", m_settingsManager->deepseekApiUrl(), m_settingsManager->deepseekApiKey());
+    }
 }
 
 QString MainWindow::escapeHtml(const QString &t)
@@ -1745,15 +1758,14 @@ void MainWindow::onResponseChunk(const QString &chunk)
 void MainWindow::onResponseReceived(const QString &)
 {
     m_isReceiving = false;
-    // 将AI回复写入历史
-    const Theme &t = m_darkMode ? DARK : LIGHT;
-    QString rendered = renderMarkdown(m_currentResponse);
-    m_chatHistory.append("ai||" + rendered);
+    // 将AI回复原始Markdown写入历史（不存渲染后的HTML，以便主题切换时重新渲染）
+    m_chatHistory.append("ai||" + m_currentResponse);
     // 限制历史条数
     while (m_chatHistory.size() > 100) {
         m_chatHistory.removeFirst();
     }
     // 重建完整显示
+    const Theme &t = m_darkMode ? DARK : LIGHT;
     QString fullHtml;
     for (const QString &entry : m_chatHistory) {
         int sep = entry.indexOf("||");
@@ -1762,10 +1774,11 @@ void MainWindow::onResponseReceived(const QString &)
         QString content = entry.mid(sep + 2);
         if (role == "user") {
             fullHtml += QString("<p style='margin:6px 0;'><b style='color:%1;'>您:</b> %2</p>")
-                            .arg(t.accent, content);
+                            .arg(t.accent, escapeHtml(content));
         } else {
+            QString rendered = renderMarkdown(content);
             fullHtml += QString("<div style='margin:6px 0;color:%1;'><b style='color:%2;'>AI:</b> %3</div>")
-                            .arg(t.text, t.accent, content);
+                            .arg(t.text, t.accent, rendered);
         }
     }
     m_chatPrefix = fullHtml;
@@ -1775,35 +1788,46 @@ void MainWindow::onResponseReceived(const QString &)
 
 void MainWindow::onModelsFetched(const QStringList &models)
 {
-    // 保存检测到的模型（各服务商各自保存，不依赖当前 provider）
-    QString currentText = m_modelSelectCombo->currentText();
-    bool isCustom = (m_modelSelectCombo->currentIndex() == m_modelSelectCombo->count() - 1);
+    QString provider = m_settingsManager->aiProvider();
 
-    // 从当前请求保存模型到对应服务商
-    if (m_settingsManager->aiProvider() == "ollama") {
+    if (provider == "ollama") {
         m_settingsManager->setDiscoveredOllamaModels(models);
+
+        QString currentText = m_modelSelectCombo->currentText();
+        bool isCustom = (m_modelSelectCombo->currentIndex() == m_modelSelectCombo->count() - 1);
+
+        m_modelSelectCombo->clear();
+        m_modelSelectCombo->setEditable(true);
+        m_modelSelectCombo->lineEdit()->setPlaceholderText("输入或选择模型名称");
+        for (const QString &m : models) { m_modelSelectCombo->addItem(m); }
+        m_modelSelectCombo->addItem("自定义");
+
+        QString saved = m_settingsManager->ollamaModel();
+        int idx = m_modelSelectCombo->findText(saved);
+        if (idx >= 0) { m_modelSelectCombo->setCurrentIndex(idx); }
+        else if (!saved.isEmpty() && models.contains(saved)) {
+            m_modelSelectCombo->setCurrentIndex(m_modelSelectCombo->findText(saved));
+        } else if (!models.isEmpty()) {
+            m_modelSelectCombo->setCurrentIndex(0);
+        } else if (isCustom && !currentText.isEmpty() && currentText != "自定义") {
+            m_modelSelectCombo->setCurrentText(currentText);
+        }
     } else {
         m_settingsManager->setDiscoveredDeepseekModels(models);
-    }
 
-    m_modelSelectCombo->clear();
-    m_modelSelectCombo->setEditable(true);
-    m_modelSelectCombo->lineEdit()->setPlaceholderText("输入或选择模型名称");
-    for (const QString &m : models) { m_modelSelectCombo->addItem(m); }
-    m_modelSelectCombo->addItem("自定义");
+        QComboBox *deepseekModelCombo = m_aiSettingsStack->widget(1)->findChild<QComboBox*>("deepseekModelCombo");
+        if (deepseekModelCombo) {
+            deepseekModelCombo->clear();
+            for (const QString &m : models) { deepseekModelCombo->addItem(m); }
+            deepseekModelCombo->addItem("自定义");
 
-    // 根据当前服务商获取保存的模型
-    QString provider = m_settingsManager->aiProvider();
-    QString saved = provider == "ollama" ? m_settingsManager->ollamaModel() : m_settingsManager->deepseekModel();
-
-    int idx = m_modelSelectCombo->findText(saved);
-    if (idx >= 0) { m_modelSelectCombo->setCurrentIndex(idx); }
-    else if (!saved.isEmpty() && models.contains(saved)) {
-        m_modelSelectCombo->setCurrentIndex(m_modelSelectCombo->findText(saved));
-    } else if (!models.isEmpty()) {
-        m_modelSelectCombo->setCurrentIndex(0);
-    } else if (isCustom && !currentText.isEmpty() && currentText != "自定义") {
-        m_modelSelectCombo->setCurrentText(currentText);
+            QString saved = m_settingsManager->deepseekModel();
+            int idx = deepseekModelCombo->findText(saved);
+            if (idx >= 0) { deepseekModelCombo->setCurrentIndex(idx); }
+            else if (!models.isEmpty()) {
+                deepseekModelCombo->setCurrentIndex(0);
+            }
+        }
     }
 
     m_settingsManager->sync();
@@ -2183,7 +2207,7 @@ void MainWindow::finishKQuiz()
     m_kQuizFeedback->hide();
     m_kQuizNextBtn->setText("再来一轮");
     m_kQuizNextBtn->show();
-    disconnect(m_kQuizNextBtn, &QPushButton::clicked, this, &MainWindow::nextKQuestion);
+    disconnect(m_kQuizNextBtn, &QPushButton::clicked, this, nullptr);
     connect(m_kQuizNextBtn, &QPushButton::clicked, this, &MainWindow::startKnowledgeQuiz);
 }
 

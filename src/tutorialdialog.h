@@ -44,6 +44,7 @@ public:
     explicit TutorialDialog(MainWindow *mainWindow, QObject *parent = nullptr);
 
     void start();
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
     void tutorialFinished();

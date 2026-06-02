@@ -2,7 +2,7 @@
 ; 制作者：傅琪
 
 #define AppName "国防安全科普教育软件"
-#define AppVersion "3.2.3"
+#define AppVersion "3.2.4"
 #define AppPublisher "傅琪"
 #define AppExeName "defense-edu.exe"
 #define AppIcon "resources\icon.ico"
@@ -37,7 +37,7 @@ CloseApplications=yes
 SetupAppTitle=安装 - {#AppName}
 SetupWindowTitle=安装 - {#AppName}
 WelcomeLabel1=欢迎使用 {#AppName} 安装向导
-WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.3 改进：修复25+项Bug，优化 Markdown 渲染、信号管理、防抖保存等。
+WelcomeLabel2=这将安装 {#AppName} 到您的计算机。%n%n本软件集成了国防装备展示、时间轴、AI 智能问答、AI 答题、知识问答、知识答题、激光防御模拟等功能。%n%n制作者：傅琪%n%n声明：Qt 不用于任何公司和商业用途。%n%n建议在继续之前关闭所有其他应用程序。%n%n版本 3.2.4 改进：修复教程遮罩缩放、游戏重置、信号时序、深色模式检测、聊天历史渲染等12项Bug。本软件将不会继续快速更新，进入稳定维护阶段。
 SelectDirLabel3=安装程序将把 {#AppName} 安装到以下文件夹。
 SelectDirBrowseLabel=如需安装到其他文件夹，请点击「浏览」。
 ReadyLabel1=安装程序已准备好将 {#AppName} 安装到您的计算机。
